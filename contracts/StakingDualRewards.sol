@@ -8,11 +8,11 @@ import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
 
 // Inheritance
 import "./interfaces/IStakingDualRewards.sol";
-import "./RewardsDistributionRecipient.sol";
+import "./DualRewardsDistributionRecipient.sol";
 import "./Pausable.sol";
 
 
-contract StakingDualRewards is IStakingDualRewards, RewardsDistributionRecipient, ReentrancyGuard, Pausable {
+contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecipient, ReentrancyGuard, Pausable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -123,7 +123,7 @@ contract StakingDualRewards is IStakingDualRewards, RewardsDistributionRecipient
         emit Withdrawn(msg.sender, amount);
     }
 
-    function getRewards() public nonReentrant updateReward(msg.sender) {
+    function getReward() public nonReentrant updateReward(msg.sender) {
         uint256 reward = rewardsA[msg.sender];
         if (reward > 0) {
             rewardsA[msg.sender] = 0;
@@ -141,7 +141,7 @@ contract StakingDualRewards is IStakingDualRewards, RewardsDistributionRecipient
 
     function exit() external {
         withdraw(_balances[msg.sender]);
-        getRewards();
+        getReward();
     }
 
     /* ========== RESTRICTED FUNCTIONS ========== */
@@ -152,10 +152,12 @@ contract StakingDualRewards is IStakingDualRewards, RewardsDistributionRecipient
             rewardRateB = rewardB.div(rewardsDuration);
         } else {
             uint256 remaining = periodFinish.sub(block.timestamp);
-            uint256 leftoverA = remaining.mul(rewardRateA);
-            uint256 leftoverB = remaining.mul(rewardRateB);
-            rewardRateA = rewardA.add(leftoverA).div(rewardsDuration);
-            rewardRateB = rewardB.add(leftoverB).div(rewardsDuration);
+
+            uint256 leftover = remaining.mul(rewardRateA);
+            rewardRateA = rewardA.add(leftover).div(rewardsDuration);
+
+            leftover = remaining.mul(rewardRateB);
+            rewardRateB = rewardB.add(leftover).div(rewardsDuration);
         }
 
         // Ensure the provided reward amount is not more than the balance in the contract.
