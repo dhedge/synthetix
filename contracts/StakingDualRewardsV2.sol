@@ -8,28 +8,27 @@ import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
 import "hardhat/console.sol";
 
 // Inheritance
-import "./interfaces/IStakingRewards.sol";
-import "./RewardsDistributionRecipient.sol";
+import "./interfaces/IStakingDualRewardsV2.sol";
+import "./DualRewardsDistributionRecipientV2.sol";
 import "./Pausable.sol";
 
 
-// https://docs.synthetix.io/contracts/source/contracts/stakingrewards
-contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, ReentrancyGuard, Pausable {
+contract StakingDualRewardsV2 is IStakingDualRewardsV2, DualRewardsDistributionRecipientV2, ReentrancyGuard, Pausable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     /* ========== STATE VARIABLES ========== */
 
-    IERC20 public rewardsToken;
+    IERC20 public rewardsTokenA;
     IERC20 public stakingToken;
     uint256 public periodFinish = 0;
-    uint256 public rewardRate = 0;
+    uint256 public rewardRateA = 0;
     uint256 public rewardsDuration = 7 days;
     uint256 public lastUpdateTime;
-    uint256 public rewardPerTokenStored;
+    uint256 public rewardPerTokenAStored;
 
-    mapping(address => uint256) public userRewardPerTokenPaid;
-    mapping(address => uint256) public rewards;
+    mapping(address => uint256) public userRewardPerTokenAPaid;
+    mapping(address => uint256) public rewardsA;
 
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
@@ -39,10 +38,10 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     constructor(
         address _owner,
         address _rewardsDistribution,
-        address _rewardsToken,
+        address _rewardsTokenA,
         address _stakingToken
     ) public Owned(_owner) {
-        rewardsToken = IERC20(_rewardsToken);
+        rewardsTokenA = IERC20(_rewardsTokenA);
         stakingToken = IERC20(_stakingToken);
         rewardsDistribution = _rewardsDistribution;
     }
@@ -61,22 +60,22 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
         return Math.min(block.timestamp, periodFinish);
     }
 
-    function rewardPerToken() public view returns (uint256) {
+    function rewardPerTokenA() public view returns (uint256) {
         if (_totalSupply == 0) {
-            return rewardPerTokenStored;
+            return rewardPerTokenAStored;
         }
         return
-            rewardPerTokenStored.add(
-                lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRate).mul(1e18).div(_totalSupply)
+            rewardPerTokenAStored.add(
+                lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRateA).mul(1e18).div(_totalSupply)
             );
     }
 
-    function earned(address account) public view returns (uint256) {
-        return _balances[account].mul(rewardPerToken().sub(userRewardPerTokenPaid[account])).div(1e18).add(rewards[account]);
+    function earnedA(address account) public view returns (uint256) {
+        return _balances[account].mul(rewardPerTokenA().sub(userRewardPerTokenAPaid[account])).div(1e18).add(rewardsA[account]);
     }
 
-    function getRewardForDuration() external view returns (uint256) {
-        return rewardRate.mul(rewardsDuration);
+    function getRewardAForDuration() external view returns (uint256) {
+        return rewardRateA.mul(rewardsDuration);
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -98,11 +97,11 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     }
 
     function getReward() public nonReentrant updateReward(msg.sender) {
-        uint256 reward = rewards[msg.sender];
+        uint256 reward = rewardsA[msg.sender];
         if (reward > 0) {
-            rewards[msg.sender] = 0;
-            rewardsToken.safeTransfer(msg.sender, reward);
-            emit RewardPaid(msg.sender, reward);
+            rewardsA[msg.sender] = 0;
+            rewardsTokenA.safeTransfer(msg.sender, reward);
+            emit RewardPaid(msg.sender, address(rewardsTokenA), reward);
         }
     }
 
@@ -113,27 +112,27 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function notifyRewardAmount(uint256 reward) external onlyRewardsDistribution updateReward(address(0)) {
+    function notifyRewardAmount(uint256 rewardA) external onlyRewardsDistribution updateReward(address(0)) {
         if (block.timestamp >= periodFinish) {
-            rewardRate = reward.div(rewardsDuration);
+            rewardRateA = rewardA.div(rewardsDuration);
         } else {
             uint256 remaining = periodFinish.sub(block.timestamp);
-            uint256 leftover = remaining.mul(rewardRate);
-            rewardRate = reward.add(leftover).div(rewardsDuration);
+            uint256 leftover = remaining.mul(rewardRateA);
+            rewardRateA = rewardA.add(leftover).div(rewardsDuration);
         }
 
         // Ensure the provided reward amount is not more than the balance in the contract.
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint balance = rewardsToken.balanceOf(address(this));
-        require(rewardRate <= balance.div(rewardsDuration), "Provided reward too high");
+        uint balance = rewardsTokenA.balanceOf(address(this));
+        require(rewardRateA <= balance.div(rewardsDuration), "Provided reward-A too high");
 
         lastUpdateTime = block.timestamp;
         console.log('periodFinish before update: %s ', periodFinish);
         periodFinish = block.timestamp.add(rewardsDuration);
         console.log('periodFinish after update: %s ', periodFinish);
-        emit RewardAdded(reward);
+        emit RewardAdded(rewardA);
     }
 
     // End rewards emission earlier
@@ -160,21 +159,21 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
     /* ========== MODIFIERS ========== */
 
     modifier updateReward(address account) {
-        rewardPerTokenStored = rewardPerToken();
+        rewardPerTokenAStored = rewardPerTokenA();
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
-            rewards[account] = earned(account);
-            userRewardPerTokenPaid[account] = rewardPerTokenStored;
+            rewardsA[account] = earnedA(account);
+            userRewardPerTokenAPaid[account] = rewardPerTokenAStored;
         }
         _;
     }
 
     /* ========== EVENTS ========== */
 
-    event RewardAdded(uint256 reward);
+    event RewardAdded(uint256 rewardA);
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
-    event RewardPaid(address indexed user, uint256 reward);
+    event RewardPaid(address indexed user, address rewardToken, uint256 reward);
     event RewardsDurationUpdated(uint256 newDuration);
     event Recovered(address token, uint256 amount);
 }

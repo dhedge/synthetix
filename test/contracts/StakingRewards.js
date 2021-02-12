@@ -109,6 +109,7 @@ contract('StakingRewards', accounts => {
 				'updatePeriodFinish',
 			],
 		});
+		//done();
 	});
 
 	describe('Constructor & Settings', () => {
@@ -697,6 +698,12 @@ contract('StakingRewards', accounts => {
 			// Period finish should be ~7 days from now
 			const periodFinish = await stakingRewards.periodFinish();
 			const curTimestamp = await currentTime();
+
+			console.log('periodFinish: ', periodFinish.toString());
+			console.log('periodFinish-parsed: ', parseInt(periodFinish.toString(), 10));
+			console.log('curTimestamp: ', curTimestamp.toString());
+			console.log('curTimestamp-advanced-by-7-days: ', curTimestamp + DAY * 7);
+
 			assert.equal(parseInt(periodFinish.toString(), 10), curTimestamp + DAY * 7);
 
 			// Reward duration is 7 days, so we'll
@@ -727,7 +734,6 @@ contract('StakingRewards', accounts => {
 			const initialRewardBal = await rewardsToken.balanceOf(stakingAccount1);
 			await stakingRewards.getReward({ from: stakingAccount1 });
 			const postRewardRewardBal = await rewardsToken.balanceOf(stakingAccount1);
-
 			assert.bnGt(postRewardRewardBal, initialRewardBal);
 
 			// Exit

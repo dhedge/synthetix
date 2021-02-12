@@ -6,6 +6,9 @@ import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/ERC20Detailed.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
 
+// We import this library to be able to use console.log
+import "hardhat/console.sol";
+
 // Inheritance
 import "./interfaces/IStakingDualRewards.sol";
 import "./DualRewardsDistributionRecipient.sol";
@@ -88,13 +91,19 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     }
 
     function earnedA(address account) public view returns (uint256) {
-        return
+       return
             _balances[account].mul(rewardPerTokenA().sub(userRewardPerTokenAPaid[account])).div(1e18).add(rewardsA[account]);
+ 
     }
 
     function earnedB(address account) public view returns (uint256) {
+        uint earnedB_Balance = _balances[account];
+        console.log("earnedB: Balance: %s of account : %s", earnedB_Balance, account);
+        uint userRewardPerTokenBPaidVar = userRewardPerTokenBPaid[account];
+        console.log("earnedB: userRewardPerTokenBPaid %s of account : %s",userRewardPerTokenBPaidVar, account);
         return
             _balances[account].mul(rewardPerTokenB().sub(userRewardPerTokenBPaid[account])).div(1e18).add(rewardsB[account]);
+    
     }
 
     function getRewardAForDuration() external view returns (uint256) {
@@ -131,11 +140,11 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
             emit RewardPaid(msg.sender, address(rewardsTokenA), reward);
         }
 
-        reward = rewardsB[msg.sender];
-        if (reward > 0) {
+        uint256 rewardAmountB = rewardsB[msg.sender];
+        if (rewardAmountB > 0) {
             rewardsB[msg.sender] = 0;
-            rewardsTokenB.safeTransfer(msg.sender, reward);
-            emit RewardPaid(msg.sender, address(rewardsTokenB), reward);
+            rewardsTokenB.safeTransfer(msg.sender, rewardAmountB);
+            emit RewardPaid(msg.sender, address(rewardsTokenB), rewardAmountB);
         }
     }
 
@@ -147,6 +156,7 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     /* ========== RESTRICTED FUNCTIONS ========== */
 
     function notifyRewardAmount(uint256 rewardA, uint256 rewardB) external onlyRewardsDistribution updateReward(address(0)) {
+        console.log('StakingDualRewards: inside notifyRewardAmount');
         if (block.timestamp >= periodFinish) {
             rewardRateA = rewardA.div(rewardsDuration);
             rewardRateB = rewardB.div(rewardsDuration);
@@ -166,11 +176,15 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
         uint balance = rewardsTokenA.balanceOf(address(this));
         require(rewardRateA <= balance.div(rewardsDuration), "Provided reward A too high");
-        balance = rewardsTokenB.balanceOf(address(this));
         require(rewardRateB <= balance.div(rewardsDuration), "Provided reward B too high");
 
         lastUpdateTime = block.timestamp;
+        console.log('periodFinish before update: %s ', periodFinish);
+        console.log('lastUpdateTime before update: %s ', lastUpdateTime);
+        console.log('rewardsDuration before update: %s ', rewardsDuration);
         periodFinish = block.timestamp.add(rewardsDuration);
+        console.log('periodFinish after update: %s ', periodFinish);
+
         emit RewardAdded(rewardA, rewardB);
     }
 
@@ -198,15 +212,16 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     /* ========== MODIFIERS ========== */
 
     modifier updateReward(address account) {
-        lastUpdateTime = lastTimeRewardApplicable();
 
         rewardPerTokenAStored = rewardPerTokenA();
+        lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
             rewardsA[account] = earnedA(account);
             userRewardPerTokenAPaid[account] = rewardPerTokenAStored;
         }
 
         rewardPerTokenBStored = rewardPerTokenB();
+    
         if (account != address(0)) {
             rewardsB[account] = earnedB(account);
             userRewardPerTokenBPaid[account] = rewardPerTokenBStored;
