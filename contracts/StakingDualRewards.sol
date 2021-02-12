@@ -91,9 +91,7 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     }
 
     function earnedA(address account) public view returns (uint256) {
-       return
-            _balances[account].mul(rewardPerTokenA().sub(userRewardPerTokenAPaid[account])).div(1e18).add(rewardsA[account]);
- 
+       return _balances[account].mul(rewardPerTokenA().sub(userRewardPerTokenAPaid[account])).div(1e18).add(rewardsA[account]);
     }
 
     function earnedB(address account) public view returns (uint256) {

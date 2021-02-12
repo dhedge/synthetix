@@ -20,6 +20,7 @@ contract('StakingDualRewardsV2', accounts => {
 
 	// Synthetix is the rewardsTokenA
 	let rewardsTokenA,
+		rewardsTokenB,
 		stakingToken,
 		externalRewardsToken,
 		exchangeRates,
@@ -56,6 +57,12 @@ contract('StakingDualRewardsV2', accounts => {
 			symbol: 'STKN',
 		}));
 
+		({ token: rewardsTokenB } = await mockToken({
+			accounts,
+			name: 'dHEDGE DAO',
+			symbol: 'DHT',
+		}));
+
 		({ token: externalRewardsToken } = await mockToken({
 			accounts,
 			name: 'External Rewards Token',
@@ -80,6 +87,7 @@ contract('StakingDualRewardsV2', accounts => {
 				   owner,
 				   rewardsDistribution.address,
 				   rewardsTokenA.address,
+				   rewardsTokenB.address,
 				   stakingToken.address,
 				],
 		});
@@ -145,7 +153,7 @@ contract('StakingDualRewardsV2', accounts => {
 		it('only owner can call notifyRewardAmount', async () => {
 			await onlyGivenAddressCanInvoke({
 				fnc: stakingDualRewardsV2.notifyRewardAmount,
-				args: [rewardValue],
+				args: [rewardValue, 0],
 				address: mockRewardsDistributionAddress,
 				accounts,
 			});
@@ -154,7 +162,7 @@ contract('StakingDualRewardsV2', accounts => {
 		it('only rewardsDistribution address can call notifyRewardAmount', async () => {
 			await onlyGivenAddressCanInvoke({
 				fnc: stakingDualRewardsV2.notifyRewardAmount,
-				args: [rewardValue],
+				args: [rewardValue, 0],
 				address: mockRewardsDistributionAddress,
 				accounts,
 			});
@@ -272,7 +280,7 @@ contract('StakingDualRewardsV2', accounts => {
 
 		describe('when updated', () => {
 			it('should equal current timestamp', async () => {
-				await stakingDualRewardsV2.notifyRewardAmount(toUnit(1.0), {
+				await stakingDualRewardsV2.notifyRewardAmount(toUnit(1.0), 0, {
 					from: mockRewardsDistributionAddress,
 				});
 
@@ -300,7 +308,7 @@ contract('StakingDualRewardsV2', accounts => {
 
 			const rewardValue = toUnit(5000.0);
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, rewardValue, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(rewardValue, {
+			await stakingDualRewardsV2.notifyRewardAmount(rewardValue, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -347,7 +355,7 @@ contract('StakingDualRewardsV2', accounts => {
 
 			const rewardValue = toUnit(5000.0);
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, rewardValue, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(rewardValue, {
+			await stakingDualRewardsV2.notifyRewardAmount(rewardValue, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -362,14 +370,14 @@ contract('StakingDualRewardsV2', accounts => {
 			const totalToDistribute = toUnit('5000');
 
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
 			const rewardRateInitial = await stakingDualRewardsV2.rewardRateA();
 
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -388,21 +396,25 @@ contract('StakingDualRewardsV2', accounts => {
 			await stakingDualRewardsV2.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
 			await fastForward(DAY * 7);
+
 			const earnedFirst = await stakingDualRewardsV2.earnedA(stakingAccount1);
-
+			console.log('earnedFirst: '+ earnedFirst.toString());
 			await setRewardsTokenExchangeRate();
+
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
 			await fastForward(DAY * 7);
+
 			const earnedSecond = await stakingDualRewardsV2.earnedA(stakingAccount1);
+			console.log('earnedSecond (After Fastforward): '+ earnedSecond.toString());
 
 			assert.bnEqual(earnedSecond, earnedFirst.add(earnedFirst));
 		});
@@ -418,7 +430,7 @@ contract('StakingDualRewardsV2', accounts => {
 			await stakingDualRewardsV2.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -455,7 +467,7 @@ contract('StakingDualRewardsV2', accounts => {
 			await stakingDualRewardsV2.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -475,7 +487,7 @@ contract('StakingDualRewardsV2', accounts => {
 			await stakingDualRewardsV2.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -489,7 +501,7 @@ contract('StakingDualRewardsV2', accounts => {
 			const newDuration = await stakingDualRewardsV2.rewardsDuration();
 			assert.bnEqual(newDuration, seventyDays);
 
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 		});
@@ -503,7 +515,7 @@ contract('StakingDualRewardsV2', accounts => {
 			await stakingDualRewardsV2.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -521,7 +533,7 @@ contract('StakingDualRewardsV2', accounts => {
 			const newDuration = await stakingDualRewardsV2.rewardsDuration();
 			assert.bnEqual(newDuration, seventyDays);
 
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -534,7 +546,7 @@ contract('StakingDualRewardsV2', accounts => {
 		it('should increase rewards token balance', async () => {
 			const totalToDistribute = toUnit('5000');
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, {
+			await stakingDualRewardsV2.notifyRewardAmount(totalToDistribute, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -606,7 +618,7 @@ contract('StakingDualRewardsV2', accounts => {
 			await stakingDualRewardsV2.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewardsV2.address, totalToDistribute, { from: owner });
-			await stakingDualRewardsV2.notifyRewardAmount(toUnit(5000.0), {
+			await stakingDualRewardsV2.notifyRewardAmount(toUnit(5000.0), 0, {
 				from: mockRewardsDistributionAddress,
 			});
 
@@ -631,7 +643,13 @@ contract('StakingDualRewardsV2', accounts => {
 			localStakingRewards = await setupContract({
 				accounts,
 				contract: 'StakingDualRewardsV2',
-				args: [owner, rewardsDistribution.address, rewardsTokenA.address, stakingToken.address],
+				args: [
+					owner,
+					rewardsDistribution.address,
+					rewardsTokenA.address,
+					rewardsTokenB.address,
+					stakingToken.address,
+				],
 			});
 
 			await localStakingRewards.setRewardsDistribution(mockRewardsDistributionAddress, {
@@ -643,7 +661,7 @@ contract('StakingDualRewardsV2', accounts => {
 			const rewardValue = toUnit(1000);
 			await rewardsTokenA.transfer(localStakingRewards.address, rewardValue, { from: owner });
 			await assert.revert(
-				localStakingRewards.notifyRewardAmount(rewardValue.add(toUnit(0.1)),  {
+				localStakingRewards.notifyRewardAmount(rewardValue.add(toUnit(0.1)), 0, {
 					from: mockRewardsDistributionAddress,
 				}),
 				'Provided reward-A too high'
@@ -653,13 +671,13 @@ contract('StakingDualRewardsV2', accounts => {
 		it('Reverts if the provided reward is greater than the balance, plus rolled-over balance.', async () => {
 			const rewardValue = toUnit(1000);
 			await rewardsTokenA.transfer(localStakingRewards.address, rewardValue, { from: owner });
-			localStakingRewards.notifyRewardAmount(rewardValue,  {
+			localStakingRewards.notifyRewardAmount(rewardValue, 0, {
 				from: mockRewardsDistributionAddress,
 			});
 			await rewardsTokenA.transfer(localStakingRewards.address, rewardValue, { from: owner });
 			// Now take into account any leftover quantity.
 			await assert.revert(
-				localStakingRewards.notifyRewardAmount(rewardValue.add(toUnit(0.1)),  {
+				localStakingRewards.notifyRewardAmount(rewardValue.add(toUnit(0.1)), 0, {
 					from: mockRewardsDistributionAddress,
 				}),
 				'Provided reward-A too high'

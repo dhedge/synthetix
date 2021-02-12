@@ -5,6 +5,8 @@ import "openzeppelin-solidity-2.3.0/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/ERC20Detailed.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
+
+// We import this library to be able to use console.log
 import "hardhat/console.sol";
 
 // Inheritance
@@ -20,15 +22,20 @@ contract StakingDualRewardsV2 is IStakingDualRewardsV2, DualRewardsDistributionR
     /* ========== STATE VARIABLES ========== */
 
     IERC20 public rewardsTokenA;
+    IERC20 public rewardsTokenB;
     IERC20 public stakingToken;
     uint256 public periodFinish = 0;
     uint256 public rewardRateA = 0;
+    uint256 public rewardRateB = 0;
     uint256 public rewardsDuration = 7 days;
     uint256 public lastUpdateTime;
     uint256 public rewardPerTokenAStored;
+    uint256 public rewardPerTokenBStored;
 
     mapping(address => uint256) public userRewardPerTokenAPaid;
+    mapping(address => uint256) public userRewardPerTokenBPaid;
     mapping(address => uint256) public rewardsA;
+    mapping(address => uint256) public rewardsB;
 
     uint256 private _totalSupply;
     mapping(address => uint256) private _balances;
@@ -39,9 +46,12 @@ contract StakingDualRewardsV2 is IStakingDualRewardsV2, DualRewardsDistributionR
         address _owner,
         address _rewardsDistribution,
         address _rewardsTokenA,
+        address _rewardsTokenB,
         address _stakingToken
     ) public Owned(_owner) {
+        require(_rewardsTokenA != _rewardsTokenB, "rewards tokens should be different");
         rewardsTokenA = IERC20(_rewardsTokenA);
+        rewardsTokenB = IERC20(_rewardsTokenB);
         stakingToken = IERC20(_stakingToken);
         rewardsDistribution = _rewardsDistribution;
     }
@@ -70,12 +80,36 @@ contract StakingDualRewardsV2 is IStakingDualRewardsV2, DualRewardsDistributionR
             );
     }
 
+    function rewardPerTokenB() public view returns (uint256) {
+        if (_totalSupply == 0) {
+            return rewardPerTokenBStored;
+        }
+        return
+            rewardPerTokenBStored.add(
+                lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRateB).mul(1e18).div(_totalSupply)
+            );
+    }
+
     function earnedA(address account) public view returns (uint256) {
         return _balances[account].mul(rewardPerTokenA().sub(userRewardPerTokenAPaid[account])).div(1e18).add(rewardsA[account]);
     }
 
+    function earnedB(address account) public view returns (uint256) {
+        uint earnedB_Balance = _balances[account];
+        console.log("earnedB: Balance: %s of account : %s", earnedB_Balance, account);
+        uint userRewardPerTokenBPaidVar = userRewardPerTokenBPaid[account];
+        console.log("earnedB: userRewardPerTokenBPaid %s of account : %s",userRewardPerTokenBPaidVar, account);
+        return
+            _balances[account].mul(rewardPerTokenB().sub(userRewardPerTokenBPaid[account])).div(1e18).add(rewardsB[account]);
+    
+    }
+
     function getRewardAForDuration() external view returns (uint256) {
         return rewardRateA.mul(rewardsDuration);
+    }
+
+    function getRewardBForDuration() external view returns (uint256) {
+        return rewardRateB.mul(rewardsDuration);
     }
 
     /* ========== MUTATIVE FUNCTIONS ========== */
@@ -97,11 +131,18 @@ contract StakingDualRewardsV2 is IStakingDualRewardsV2, DualRewardsDistributionR
     }
 
     function getReward() public nonReentrant updateReward(msg.sender) {
-        uint256 reward = rewardsA[msg.sender];
-        if (reward > 0) {
+        uint256 rewardAmountA = rewardsA[msg.sender];
+        if (rewardAmountA > 0) {
             rewardsA[msg.sender] = 0;
-            rewardsTokenA.safeTransfer(msg.sender, reward);
-            emit RewardPaid(msg.sender, address(rewardsTokenA), reward);
+            rewardsTokenA.safeTransfer(msg.sender, rewardAmountA);
+            emit RewardPaid(msg.sender, address(rewardsTokenA), rewardAmountA);
+        }
+
+        uint256 rewardAmountB = rewardsB[msg.sender];
+        if (rewardAmountB > 0) {
+            rewardsB[msg.sender] = 0;
+            rewardsTokenB.safeTransfer(msg.sender, rewardAmountB);
+            emit RewardPaid(msg.sender, address(rewardsTokenB), rewardAmountB);
         }
     }
 
@@ -112,14 +153,20 @@ contract StakingDualRewardsV2 is IStakingDualRewardsV2, DualRewardsDistributionR
 
     /* ========== RESTRICTED FUNCTIONS ========== */
 
-    function notifyRewardAmount(uint256 rewardA) external onlyRewardsDistribution updateReward(address(0)) {
+    function notifyRewardAmount(uint256 rewardA, uint256 rewardB) external onlyRewardsDistribution updateReward(address(0)) {
+        console.log('StakingDualRewardsV2: inside notifyRewardAmount');
         if (block.timestamp >= periodFinish) {
             rewardRateA = rewardA.div(rewardsDuration);
+            rewardRateB = rewardB.div(rewardsDuration);
         } else {
             uint256 remaining = periodFinish.sub(block.timestamp);
-            uint256 leftover = remaining.mul(rewardRateA);
-            rewardRateA = rewardA.add(leftover).div(rewardsDuration);
-        }
+            
+            uint256 leftoverA = remaining.mul(rewardRateA);
+            rewardRateA = rewardA.add(leftoverA).div(rewardsDuration);
+            
+            uint256 leftoverB = remaining.mul(rewardRateB);
+            rewardRateB = rewardB.add(leftoverB).div(rewardsDuration);
+          }
 
         // Ensure the provided reward amount is not more than the balance in the contract.
         // This keeps the reward rate in the right range, preventing overflows due to
@@ -127,12 +174,16 @@ contract StakingDualRewardsV2 is IStakingDualRewardsV2, DualRewardsDistributionR
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
         uint balance = rewardsTokenA.balanceOf(address(this));
         require(rewardRateA <= balance.div(rewardsDuration), "Provided reward-A too high");
+        require(rewardRateB <= balance.div(rewardsDuration), "Provided reward-B too high");
 
         lastUpdateTime = block.timestamp;
         console.log('periodFinish before update: %s ', periodFinish);
+        console.log('lastUpdateTime before update: %s ', lastUpdateTime);
+        console.log('rewardsDuration before update: %s ', rewardsDuration);
         periodFinish = block.timestamp.add(rewardsDuration);
         console.log('periodFinish after update: %s ', periodFinish);
-        emit RewardAdded(rewardA);
+
+        emit RewardAdded(rewardA, rewardB);
     }
 
     // End rewards emission earlier
@@ -159,18 +210,26 @@ contract StakingDualRewardsV2 is IStakingDualRewardsV2, DualRewardsDistributionR
     /* ========== MODIFIERS ========== */
 
     modifier updateReward(address account) {
+
         rewardPerTokenAStored = rewardPerTokenA();
+        rewardPerTokenBStored = rewardPerTokenB();
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
             rewardsA[account] = earnedA(account);
             userRewardPerTokenAPaid[account] = rewardPerTokenAStored;
         }
+            
+        if (account != address(0)) {
+            rewardsB[account] = earnedB(account);
+            userRewardPerTokenBPaid[account] = rewardPerTokenBStored;
+        }
+        
         _;
     }
 
     /* ========== EVENTS ========== */
 
-    event RewardAdded(uint256 rewardA);
+    event RewardAdded(uint256 rewardA, uint256 rewardB);
     event Staked(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event RewardPaid(address indexed user, address rewardToken, uint256 reward);
