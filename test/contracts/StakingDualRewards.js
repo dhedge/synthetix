@@ -80,8 +80,12 @@ contract('StakingDualRewards', accounts => {
 			contracts: ['DualRewardsDistribution', 'Synthetix', 'FeePool', 'SystemSettings'],
 		}));
 
-		console.log('stakingAccount is: ', stakingAccount1);
-		console.log('dualRewardsDistribution contract Address is: ', dualRewardsDistribution);
+		console.log(`stakingAccount1 is: ${stakingAccount1}`);
+		console.log('stakingToken address: ', stakingToken.address);
+		console.log(`rewardsTokenA is: SNX with address: ${rewardsTokenA.address} `);
+		console.log(`rewardsTokenB is: DHT with address: ${rewardsTokenB.address} `);
+		console.log(`externalRewardsToken is: MOAR with address: ${externalRewardsToken.address} `);
+		console.log('dualRewardsDistribution contract Address is: ', dualRewardsDistribution.address);
 
 		stakingDualRewards = await setupContract({
 			accounts,

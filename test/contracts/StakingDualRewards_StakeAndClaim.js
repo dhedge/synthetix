@@ -80,6 +80,13 @@ contract('StakingDualRewards', accounts => {
 			contracts: ['DualRewardsDistribution', 'Synthetix', 'FeePool', 'SystemSettings'],
 		}));
 
+		console.log(`stakingAccount1 is: ${stakingAccount1}`);
+		console.log('stakingToken address: ', stakingToken.address);
+		console.log(`rewardsTokenA is: SNX with address: ${rewardsTokenA.address} `);
+		console.log(`rewardsTokenB is: DHT with address: ${rewardsTokenB.address} `);
+		console.log(`externalRewardsToken is: MOAR with address: ${externalRewardsToken.address} `);
+		console.log('dualRewardsDistribution contract Address is: ', dualRewardsDistribution.address);
+
 		stakingDualRewards = await setupContract({
 			accounts,
 			contract: 'StakingDualRewards',
@@ -155,13 +162,26 @@ contract('StakingDualRewards', accounts => {
 		});
 
 		it('stake and claim', async () => {
+
+			//staking-Token balance of investor before getting funded with Staking-Token 
+			const stakingBalanceOfInvestorBefFunding = await stakingToken.balanceOf(stakingAccount1);
+			console.log(`staking-Token balance of investor before getting funded with Staking-Token: ${stakingBalanceOfInvestorBefFunding}`);
+
 			// Transfer some LP Tokens to user
 			const totalToStake = toUnit('500');
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
 
+			//staking-Token balance of investor before Staking
+			const stakingBalanceOfInvestorBefStake = await stakingToken.balanceOf(stakingAccount1);
+			console.log(`stakingToken Balance Of Investor Before Staking: ${stakingBalanceOfInvestorBefStake}`);
+
 			// Stake LP Tokens
 			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
+
+			//staking-Token balance of investor After Staking
+			const stakingBalanceOfInvestorAftStake = await stakingToken.balanceOf(stakingAccount1);
+			console.log(`stakingToken Balance Of Investor After Staking: ${stakingBalanceOfInvestorAftStake}`);
 
 			// Distribute some rewards
 			const totalToDistribute = toUnit('35000');
@@ -178,10 +198,20 @@ contract('StakingDualRewards', accounts => {
 			// Transfer Rewards to the RewardsDistribution contract address
 			await rewardsTokenA.transfer(dualRewardsDistribution.address, totalToDistribute, { from: owner });
 
+			const rewardTokenBalance_Of_DualRewardsDistributionAddress_Bef_Dist = 
+			 await rewardsTokenA.balanceOf(dualRewardsDistribution.address);
+			 console.log('rewardToken Balance of dualRewardsDistribution-Address before rewardDistribution is: ',
+			 rewardTokenBalance_Of_DualRewardsDistributionAddress_Bef_Dist.toString());
+ 	
 			// Distribute Rewards called from Synthetix contract as the authority to distribute
 			await dualRewardsDistribution.distributeRewards(totalToDistribute, {
 				from: authority,
 			});
+
+			const rewardTokenBalance_Of_DualRewardsDistributionAddress_After_Dist = 
+			 await rewardsTokenA.balanceOf(dualRewardsDistribution.address);
+			 console.log('rewardToken Balance of dualRewardsDistribution-Address after rewardDistribution is: ',
+			 rewardTokenBalance_Of_DualRewardsDistributionAddress_After_Dist.toString());
 
 			// Period finish should be ~7 days from now
 			const periodFinish = await stakingDualRewards.periodFinish();
@@ -200,7 +230,7 @@ contract('StakingDualRewards', accounts => {
 
 			// Reward rate and reward per token
 			const rewardRateA = await stakingDualRewards.rewardRateA();
-			console.log('rewardRateA is: ',rewardRateA);
+			console.log('rewardRateA is: ',rewardRateA.toString());
 			assert.bnGt(rewardRateA, ZERO_BN);
 
 			const rewardPerToken = await stakingDualRewards.rewardPerTokenA();
@@ -209,13 +239,39 @@ contract('StakingDualRewards', accounts => {
 
 			// Make sure we earned in proportion to reward per token
 			const rewardRewardsEarned = await stakingDualRewards.earnedA(stakingAccount1);
+			console.log(`rewardRewardsEarned earned by staker ${stakingAccount1} is: ${rewardRewardsEarned.toString()}
+							 - with rewardPerToken as: ${rewardPerToken} - totalToStake: ${totalToStake} `);
+
+			const snx_token_earned_By_Staker = await stakingDualRewards.userRewardPerTokenAPaid(stakingAccount1);
+			console.log(`snx_token_earned_By_Staker earned by staker ${stakingAccount1} is: ${snx_token_earned_By_Staker.toString()}`);
+	 
 			assert.bnEqual(rewardRewardsEarned, rewardPerToken.mul(totalToStake).div(toUnit(1)));
 
 			// Make sure after withdrawing, we still have the ~amount of rewardRewards
 			// The two values will be a bit different as time has "passed"
+
+			//staked LP-Tokens of investor before withdrawal
+			const stakedLPTokensOfInvestorBefWdrl = await stakingDualRewards.balanceOf(stakingAccount1);
+			console.log(`staked LP-Tokens Of Investor Before Withdrawal: ${stakedLPTokensOfInvestorBefWdrl}`);
+
+			//staking-Token balance of investor of  before withdrawal
+			const stakingTokenBalanceOfInvestorBefWdrl = await stakingToken.balanceOf(stakingAccount1);
+			console.log(`stakingToken Balance Of Investor Before Withdrawal: ${stakingTokenBalanceOfInvestorBefWdrl}`);
+
+			//investor to withdraw staked LP Tokens 
 			const initialWithdraw = toUnit('100');
 			await stakingDualRewards.withdraw(initialWithdraw, { from: stakingAccount1 });
+
+			//staked balance of investor of  after withdrawal
+			const stakingTokenBalanceOfInvestorAftWdrl = await stakingToken.balanceOf(stakingAccount1);
+			console.log(`stakingToken Balance Of Investor After Withdrawal: ${stakingTokenBalanceOfInvestorAftWdrl}`);
+
 			assert.bnEqual(initialWithdraw, await stakingToken.balanceOf(stakingAccount1));
+
+			//staked balance of investor before withdrawal
+			const stakedLPTokensOfInvestorAfterWdrl = await stakingDualRewards.balanceOf(stakingAccount1);
+			console.log(`staked LP-Tokens Of Investor After Withdrawal: ${stakedLPTokensOfInvestorAfterWdrl}`);
+
 
 			const rewardRewardsEarnedPostWithdraw = await stakingDualRewards.earnedA(stakingAccount1);
 			assert.bnClose(rewardRewardsEarned, rewardRewardsEarnedPostWithdraw, toUnit('0.1'));
