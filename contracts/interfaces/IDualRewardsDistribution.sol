@@ -5,8 +5,11 @@ pragma solidity >=0.4.24;
 interface IDualRewardsDistribution {
     // Structs
     struct DualRewardsDistributionData {
+        address rewardTokenAProxy;
+        uint amountA;
+        address rewardTokenBProxy;
+        uint amountB;
         address destination;
-        uint amount;
     }
 
     // Views
@@ -17,5 +20,5 @@ interface IDualRewardsDistribution {
     function distributionsLength() external view returns (uint);
 
     // Mutative Functions
-    function distributeRewards(uint amount) external returns (bool);
+    function distributeRewards(uint amountA, uint amountB) external returns (bool);
 }

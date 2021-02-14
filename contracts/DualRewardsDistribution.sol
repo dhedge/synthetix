@@ -27,6 +27,11 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
      */
     address public synthetixProxy;
 
+        /**
+     * @notice Address of the ProxyERC20
+     */
+    address public rewardTokenProxy;
+
     /**
      * @notice Address of the RewardEscrow contract
      */
@@ -50,12 +55,14 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
         address _owner,
         address _authority,
         address _synthetixProxy,
+        address _rewardTokenProxy,
         address _rewardEscrow,
         address _feePoolProxy
     ) public Owned(_owner) {
         console.log('DualRewardsDistribution is getting initialised ');
         authority = _authority;
         synthetixProxy = _synthetixProxy;
+        rewardTokenProxy = _rewardTokenProxy;
         rewardEscrow = _rewardEscrow;
         feePoolProxy = _feePoolProxy;
     }
@@ -92,16 +99,18 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
      * @param destination An address to send rewards tokens too
      * @param amount The amount of rewards tokens to send
      */
-    function addRewardDistribution(address destination, uint amount) external onlyOwner returns (bool) {
+
+    function addDualRewardsDistribution(address rewardTokenAProxy, uint amountA,address rewardTokenBProxy, uint amountB, address destination) external onlyOwner returns (bool) {
         require(destination != address(0), "Cant add a zero address");
-        require(amount != 0, "Cant add a zero amount");
+        require(amountA != 0, "Cant add a zero reward-amountA");
+        require(amountB != 0, "Cant add a zero reward-amountB");
 
         console.log('addRewardDistribution for destination: %s', destination);
 
-        DualRewardsDistributionData memory dualRewardsDistribution = DualRewardsDistributionData(destination, amount);
+        DualRewardsDistributionData memory dualRewardsDistribution = DualRewardsDistributionData(rewardTokenAProxy, amountA, rewardTokenBProxy, amountB, destination);
         distributions.push(dualRewardsDistribution);
 
-        emit RewardDistributionAdded(distributions.length - 1, destination, amount);
+        emit DualRewardDistributionAdded(distributions.length - 1, rewardTokenAProxy, amountA, rewardTokenBProxy, amountB, destination);
         return true;
     }
 
@@ -110,7 +119,7 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
      * so it will no longer be included in the call to distributeRewards()
      * @param index The index of the DualRewardsDistributionData to delete
      */
-    function removeRewardDistribution(uint index) external onlyOwner {
+    function removeDualRewardsDistribution(uint index) external onlyOwner {
         require(index <= distributions.length - 1, "index out of bounds");
 
         // shift distributions indexes across
@@ -128,69 +137,81 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
     /**
      * @notice Edits a RewardDistribution in the distributions array.
      * @param index The index of the DualRewardsDistributionData to edit
+     * @param rewardTokenAProxy The proxy token address of rewardA. Send the same address to keep or different address to change it.
+     * @param amountA The amount of rewardA-tokens to edit. Send the same number to keep or change the amount of tokens to send.
+    * @param rewardTokenBProxy The proxy token address of rewardB. Send the same address to keep or different address to change it.
+     * @param amountB The amount of rewardB-tokens to edit. Send the same number to keep or change the amount of tokens to send.
      * @param destination The destination address. Send the same address to keep or different address to change it.
-     * @param amount The amount of tokens to edit. Send the same number to keep or change the amount of tokens to send.
      */
-    function editRewardDistribution(
+    function editDualRewardsDistribution(
         uint index,
-        address destination,
-        uint amount
+        address rewardTokenAProxy,
+        uint amountA,
+        address rewardTokenBProxy,
+        uint amountB,
+        address destination
     ) external onlyOwner returns (bool) {
         require(index <= distributions.length - 1, "index out of bounds");
-
+        distributions[index].rewardTokenAProxy = rewardTokenAProxy;
+        distributions[index].amountA = amountA;
+        distributions[index].rewardTokenBProxy = rewardTokenBProxy;
+        distributions[index].amountB = amountB;
         distributions[index].destination = destination;
-        distributions[index].amount = amount;
-
         return true;
     }
 
-    function distributeRewards(uint amount) external returns (bool) {
-        require(amount > 0, "Nothing to distribute");
+    function distributeRewards(uint rewardAmountA, uint rewardAmountB) external returns (bool) {
+        require(rewardAmountA > 0 || rewardAmountB > 0, "Nothing to distribute");
         require(msg.sender == authority, "Caller is not authorised");
         require(rewardEscrow != address(0), "RewardEscrow is not set");
         require(synthetixProxy != address(0), "SynthetixProxy is not set");
         require(feePoolProxy != address(0), "FeePoolProxy is not set");
         require(
-            IERC20(synthetixProxy).balanceOf(address(this)) >= amount,
-            "RewardsDistribution contract does not have enough tokens to distribute"
+            IERC20(synthetixProxy).balanceOf(address(this)) >= rewardAmountA,
+            "RewardsDistribution contract does not have enough synthetixProxy tokens to distribute"
+        );
+        require(
+            IERC20(rewardTokenProxy).balanceOf(address(this)) >= rewardAmountB,
+            "RewardsDistribution contract does not have enough rewardTokenProxy tokens to distribute"
         );
 
-        uint remainder = amount;
+        uint remainderA = rewardAmountA;
+        uint remainderB = rewardAmountB;
 
         // Iterate the array of distributions sending the configured amounts
         for (uint i = 0; i < distributions.length; i++) {
             if (distributions[i].destination != address(0) || distributions[i].amount != 0) {
-                remainder = remainder.sub(distributions[i].amount);
+                remainderA = remainderA.sub(distributions[i].amountA);
+                remainderB = remainderB.sub(distributions[i].amountB);
 
-                // Transfer the SNX
-                IERC20(synthetixProxy).transfer(distributions[i].destination, distributions[i].amount);
+                // Transfer the rewardTokenA
+                IERC20(synthetixProxy).transfer(distributions[i].destination, distributions[i].amountA);
 
-                console.log('notifyRewardAmount(uint256) to be called on: %s for amount: %s ', distributions[i].destination, distributions[i].amount);
+                // Transfer the rewardTokenB
+                IERC20(rewardTokenProxy).transfer(distributions[i].destination, distributions[i].amountB);
 
                 // If the contract implements RewardsDistributionRecipient.sol, inform it how many SNX its received.
-                bytes memory payload = abi.encodeWithSignature("notifyRewardAmount(uint256,uint256)", distributions[i].amount,0);
+                bytes memory payload = abi.encodeWithSignature("notifyRewardAmount(uint256,uint256)", distributions[i].amountA, distributions[i].amountB);
 
                 // solhint-disable avoid-low-level-calls
                 (bool success, ) = distributions[i].destination.call(payload);
 
                 if (!success) {
                     // Note: we're ignoring the return value as it will fail for contracts that do not implement RewardsDistributionRecipient.sol
-                    console.log('RewardsDistribution-> notifyRewardAmount(uint256) Failed for: %s for amount: %s', distributions[i].destination, distributions[i].amount);
-                }else{
-                    console.log('RewardsDistribution-> notifyRewardAmount(uint256) Successful for: %s for amount: %s', distributions[i].destination, distributions[i].amount);
                 }
             }
         }
 
         // After all ditributions have been sent, send the remainder to the RewardsEscrow contract
-        IERC20(synthetixProxy).transfer(rewardEscrow, remainder);
+        IERC20(synthetixProxy).transfer(rewardEscrow, remainderA);
 
         // Tell the FeePool how much it has to distribute to the stakers
-        IFeePool(feePoolProxy).setDualRewardsToDistribute(remainder);
+        //IFeePool(feePoolProxy).setDualRewardsToDistribute(remainderA);
 
-        emit RewardsDistributed(amount);
+        emit DualRewardsDistributed(rewardAmountA, rewardAmountB);
         return true;
     }
+    
 
     /* ========== VIEWS ========== */
 
@@ -202,7 +223,6 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
     }
 
     /* ========== Events ========== */
-
-    event RewardDistributionAdded(uint index, address destination, uint amount);
-    event RewardsDistributed(uint amount);
+    event DualRewardDistributionAdded(uint index, address rewardTokenAProxy, uint amountA, address rewardTokenBProxy, uint amountB, address destination);
+    event DualRewardsDistributed(uint amountA, uint amountB);
 }

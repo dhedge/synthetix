@@ -249,16 +249,6 @@ contract FeePool is Owned, Proxyable, LimitedSetup, MixinSystemSettings, IFeePoo
     }
 
     /**
-     * @notice The RewardsDistribution contract informs us how many SNX rewards are sent to RewardEscrow to be claimed.
-     */
-    function setDualRewardsToDistribute(uint amount) external {
-        address rewardsAuthority = address(dualRewardsDistribution());
-        require(messageSender == rewardsAuthority || msg.sender == rewardsAuthority, "Caller is not rewardsAuthority");
-        // Add the amount of SNX rewards to distribute on top of any rolling unclaimed amount
-        _recentFeePeriodsStorage(0).rewardsToDistribute = _recentFeePeriodsStorage(0).rewardsToDistribute.add(amount);
-    }
-
-    /**
      * @notice Close the current fee period and start a new one.
      */
     function closeCurrentFeePeriod() external issuanceActive {

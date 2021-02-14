@@ -166,11 +166,11 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint balanceOfRewardA = rewardsTokenA.balanceOf(address(this));
-        require(rewardRateA <= balance.div(rewardsDuration), "Provided reward-A too high");
+        uint balanceA = rewardsTokenA.balanceOf(address(this));
+        require(rewardRateA <= balanceA.div(rewardsDuration), "Provided reward-A too high");
 
-        uint balanceOfRewardB = rewardsTokenB.balanceOf(address(this));
-        require(rewardRateB <= balance.div(rewardsDuration), "Provided reward-B too high");
+        uint balanceB = rewardsTokenB.balanceOf(address(this));
+        require(rewardRateB <= balanceB.div(rewardsDuration), "Provided reward-B too high");
 
         lastUpdateTime = block.timestamp;
         periodFinish = block.timestamp.add(rewardsDuration);
