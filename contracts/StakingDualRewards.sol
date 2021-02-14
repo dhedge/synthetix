@@ -95,13 +95,8 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     }
 
     function earnedB(address account) public view returns (uint256) {
-        uint earnedB_Balance = _balances[account];
-        console.log("earnedB: Balance: %s of account : %s", earnedB_Balance, account);
-        uint userRewardPerTokenBPaidVar = userRewardPerTokenBPaid[account];
-        console.log("earnedB: userRewardPerTokenBPaid %s of account : %s",userRewardPerTokenBPaidVar, account);
         return
             _balances[account].mul(rewardPerTokenB().sub(userRewardPerTokenBPaid[account])).div(1e18).add(rewardsB[account]);
-    
     }
 
     function getRewardAForDuration() external view returns (uint256) {
@@ -154,7 +149,6 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     /* ========== RESTRICTED FUNCTIONS ========== */
 
     function notifyRewardAmount(uint256 rewardA, uint256 rewardB) external onlyDualRewardsDistribution updateReward(address(0)) {
-        console.log('StakingDualRewards: inside notifyRewardAmount');
         if (block.timestamp >= periodFinish) {
             rewardRateA = rewardA.div(rewardsDuration);
             rewardRateB = rewardB.div(rewardsDuration);
@@ -172,25 +166,20 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
         // This keeps the reward rate in the right range, preventing overflows due to
         // very high values of rewardRate in the earned and rewardsPerToken functions;
         // Reward + leftover must be less than 2^256 / 10^18 to avoid overflow.
-        uint balance = rewardsTokenA.balanceOf(address(this));
+        uint balanceOfRewardA = rewardsTokenA.balanceOf(address(this));
         require(rewardRateA <= balance.div(rewardsDuration), "Provided reward-A too high");
+
+        uint balanceOfRewardB = rewardsTokenB.balanceOf(address(this));
         require(rewardRateB <= balance.div(rewardsDuration), "Provided reward-B too high");
 
         lastUpdateTime = block.timestamp;
-        console.log('periodFinish before update: %s ', periodFinish);
-        console.log('lastUpdateTime before update: %s ', lastUpdateTime);
-        console.log('rewardsDuration before update: %s ', rewardsDuration);
         periodFinish = block.timestamp.add(rewardsDuration);
-        console.log('periodFinish incremented by %s is : %s ',rewardsDuration ,periodFinish);
-
         emit RewardAdded(rewardA, rewardB);
     }
 
     // End rewards emission earlier
     function updatePeriodFinish(uint timestamp) external onlyOwner updateReward(address(0)) {
         periodFinish = timestamp;
-        console.log('updatePeriodFinish -> timestamp received is: %s', timestamp);
-        console.log('updatePeriodFinish -> periodFinish is: %s', periodFinish);
     }
 
     // Added to support recovering LP Rewards from other systems such as BAL to be distributed to holders
@@ -214,20 +203,17 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     modifier updateReward(address account) {
 
         rewardPerTokenAStored = rewardPerTokenA();
-        //rewardPerTokenBStored = rewardPerTokenB();
+        rewardPerTokenBStored = rewardPerTokenB();
         lastUpdateTime = lastTimeRewardApplicable();
         if (account != address(0)) {
             rewardsA[account] = earnedA(account);
             userRewardPerTokenAPaid[account] = rewardPerTokenAStored;
         }
         
-        // if (account != address(0)) {
-        //     rewardsB[account] = earnedB(account);
-        //     userRewardPerTokenBPaid[account] = rewardPerTokenBStored;
-        // }
-        //console.log('updateReward -> lastUpdateTime-final is: %s', lastUpdateTime);
-        //console.log('updateReward -> periodFinish-final is: %s', periodFinish);
-
+        if (account != address(0)) {
+            rewardsB[account] = earnedB(account);
+            userRewardPerTokenBPaid[account] = rewardPerTokenBStored;
+        }
         _;
     }
 
