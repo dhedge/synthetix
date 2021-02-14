@@ -238,6 +238,13 @@ const setupContract = async ({
 			0,
 			0,
 		],
+		DualRewardsDistribution: [
+			owner,
+			tryGetAddressOf('Synthetix'),
+			tryGetAddressOf('ProxyERC20Synthetix'),
+			tryGetAddressOf('RewardEscrowV2'),
+			tryGetAddressOf('ProxyFeePool'),
+		]
 	};
 
 	let instance;
@@ -329,6 +336,20 @@ const setupContract = async ({
 							fncName: 'setSynthetixProxy',
 							args: [cache['ProxyERC20Synthetix'].address], // will fail if no Proxy instantiated for Synthetix
 						}) || []
+					).concat(
+						// If there's a rewards distribution that's not a mock
+						tryInvocationIfNotMocked({
+							name: 'DualRewardsDistribution',
+							fncName: 'setAuthority',
+							args: [instance.address],
+						}) || []
+					)
+					.concat(
+						tryInvocationIfNotMocked({
+							name: 'DualRewardsDistribution',
+							fncName: 'setSynthetixProxy',
+							args: [cache['ProxyERC20Synthetix'].address], // will fail if no Proxy instantiated for Synthetix
+						}) || []
 					)
 			);
 		},
@@ -362,6 +383,21 @@ const setupContract = async ({
 					.concat(
 						tryInvocationIfNotMocked({
 							name: 'RewardsDistribution',
+							fncName: 'setSynthetixProxy',
+							args: [cache['ProxyERC20BaseSynthetix'].address], // will fail if no Proxy instantiated for BaseSynthetix
+						}) || []
+					)
+					.concat(
+						// If there's a rewards distribution that's not a mock
+						tryInvocationIfNotMocked({
+							name: 'DualRewardsDistribution',
+							fncName: 'setAuthority',
+							args: [instance.address],
+						}) || []
+					)
+					.concat(
+						tryInvocationIfNotMocked({
+							name: 'DualRewardsDistribution',
 							fncName: 'setSynthetixProxy',
 							args: [cache['ProxyERC20BaseSynthetix'].address], // will fail if no Proxy instantiated for BaseSynthetix
 						}) || []
@@ -615,6 +651,10 @@ const setupAllContracts = async ({
 			contract: 'RewardsDistribution',
 			mocks: ['Synthetix', 'FeePool', 'RewardEscrow', 'RewardEscrowV2', 'ProxyFeePool'],
 		},
+		{
+			contract: 'DualRewardsDistribution',
+			mocks: ['Synthetix', 'FeePool', 'RewardEscrow', 'RewardEscrowV2', 'ProxyFeePool'],
+		},
 		{ contract: 'Depot', deps: ['AddressResolver', 'SystemStatus'] },
 		{ contract: 'SynthUtil', deps: ['AddressResolver'] },
 		{ contract: 'DappMaintenance' },
@@ -728,7 +768,7 @@ const setupAllContracts = async ({
 				'TokenState',
 				'RewardsDistribution',
 				'RewardEscrow',
-				'SynthetixState',
+				'SynthetixState'
 			],
 		},
 		{
@@ -756,7 +796,7 @@ const setupAllContracts = async ({
 				'RewardsDistribution',
 				'FlexibleStorage',
 				'EtherCollateralsUSD',
-				'CollateralManager',
+				'CollateralManager'
 			],
 			deps: ['SystemStatus', 'FeePoolState', 'AddressResolver'],
 		},

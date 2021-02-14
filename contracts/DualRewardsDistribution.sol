@@ -2,19 +2,18 @@ pragma solidity ^0.5.16;
 
 // Inheritance
 import "./Owned.sol";
-import "./interfaces/IRewardsDistribution.sol";
 
 // Libraires
 import "./SafeDecimalMath.sol";
+import "hardhat/console.sol";
 
 // Internal references
 import "./interfaces/IERC20.sol";
 import "./interfaces/IFeePool.sol";
-import "./interfaces/IRewardsDistribution.sol";
-
+import "./interfaces/IDualRewardsDistribution.sol";
 
 // https://docs.synthetix.io/contracts/source/contracts/rewardsdistribution
-contract RewardsDistribution is Owned, IRewardsDistribution {
+contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
     using SafeMath for uint;
     using SafeDecimalMath for uint;
 
@@ -41,7 +40,7 @@ contract RewardsDistribution is Owned, IRewardsDistribution {
     /**
      * @notice An array of addresses and amounts to send
      */
-    DistributionData[] public distributions;
+    DualRewardsDistributionData[] public distributions;
 
     /**
      * @dev _authority maybe the underlying synthetix contract.
@@ -54,6 +53,7 @@ contract RewardsDistribution is Owned, IRewardsDistribution {
         address _rewardEscrow,
         address _feePoolProxy
     ) public Owned(_owner) {
+        console.log('DualRewardsDistribution is getting initialised ');
         authority = _authority;
         synthetixProxy = _synthetixProxy;
         rewardEscrow = _rewardEscrow;
@@ -85,7 +85,7 @@ contract RewardsDistribution is Owned, IRewardsDistribution {
     // ========== EXTERNAL FUNCTIONS ==========
 
     /**
-     * @notice Adds a Rewards DistributionData struct to the distributions
+     * @notice Adds a Rewards DualRewardsDistributionData struct to the distributions
      * array. Any entries here will be iterated and rewards distributed to
      * each address when tokens are sent to this contract and distributeRewards()
      * is called by the autority.
@@ -95,8 +95,11 @@ contract RewardsDistribution is Owned, IRewardsDistribution {
     function addRewardDistribution(address destination, uint amount) external onlyOwner returns (bool) {
         require(destination != address(0), "Cant add a zero address");
         require(amount != 0, "Cant add a zero amount");
-        DistributionData memory rewardsDistribution = DistributionData(destination, amount);
-        distributions.push(rewardsDistribution);
+
+        console.log('addRewardDistribution for destination: %s', destination);
+
+        DualRewardsDistributionData memory dualRewardsDistribution = DualRewardsDistributionData(destination, amount);
+        distributions.push(dualRewardsDistribution);
 
         emit RewardDistributionAdded(distributions.length - 1, destination, amount);
         return true;
@@ -105,7 +108,7 @@ contract RewardsDistribution is Owned, IRewardsDistribution {
     /**
      * @notice Deletes a RewardDistribution from the distributions
      * so it will no longer be included in the call to distributeRewards()
-     * @param index The index of the DistributionData to delete
+     * @param index The index of the DualRewardsDistributionData to delete
      */
     function removeRewardDistribution(uint index) external onlyOwner {
         require(index <= distributions.length - 1, "index out of bounds");
@@ -124,7 +127,7 @@ contract RewardsDistribution is Owned, IRewardsDistribution {
 
     /**
      * @notice Edits a RewardDistribution in the distributions array.
-     * @param index The index of the DistributionData to edit
+     * @param index The index of the DualRewardsDistributionData to edit
      * @param destination The destination address. Send the same address to keep or different address to change it.
      * @param amount The amount of tokens to edit. Send the same number to keep or change the amount of tokens to send.
      */
@@ -162,14 +165,19 @@ contract RewardsDistribution is Owned, IRewardsDistribution {
                 // Transfer the SNX
                 IERC20(synthetixProxy).transfer(distributions[i].destination, distributions[i].amount);
 
+                console.log('notifyRewardAmount(uint256) to be called on: %s for amount: %s ', distributions[i].destination, distributions[i].amount);
+
                 // If the contract implements RewardsDistributionRecipient.sol, inform it how many SNX its received.
-                bytes memory payload = abi.encodeWithSignature("notifyRewardAmount(uint256)", distributions[i].amount);
+                bytes memory payload = abi.encodeWithSignature("notifyRewardAmount(uint256,uint256)", distributions[i].amount,0);
 
                 // solhint-disable avoid-low-level-calls
                 (bool success, ) = distributions[i].destination.call(payload);
 
                 if (!success) {
                     // Note: we're ignoring the return value as it will fail for contracts that do not implement RewardsDistributionRecipient.sol
+                    console.log('RewardsDistribution-> notifyRewardAmount(uint256) Failed for: %s for amount: %s', distributions[i].destination, distributions[i].amount);
+                }else{
+                    console.log('RewardsDistribution-> notifyRewardAmount(uint256) Successful for: %s for amount: %s', distributions[i].destination, distributions[i].amount);
                 }
             }
         }
@@ -178,7 +186,7 @@ contract RewardsDistribution is Owned, IRewardsDistribution {
         IERC20(synthetixProxy).transfer(rewardEscrow, remainder);
 
         // Tell the FeePool how much it has to distribute to the stakers
-        IFeePool(feePoolProxy).setRewardsToDistribute(remainder);
+        IFeePool(feePoolProxy).setDualRewardsToDistribute(remainder);
 
         emit RewardsDistributed(amount);
         return true;
