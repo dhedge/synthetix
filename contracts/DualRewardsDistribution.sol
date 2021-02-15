@@ -5,7 +5,6 @@ import "./Owned.sol";
 
 // Libraires
 import "./SafeDecimalMath.sol";
-import "hardhat/console.sol";
 
 // Internal references
 import "./interfaces/IERC20.sol";

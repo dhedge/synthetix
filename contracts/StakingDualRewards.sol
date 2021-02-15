@@ -6,9 +6,6 @@ import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/ERC20Detailed.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
 
-// We import this library to be able to use console.log
-import "hardhat/console.sol";
-
 // Inheritance
 import "./interfaces/IStakingDualRewards.sol";
 import "./DualRewardsDistributionRecipient.sol";
