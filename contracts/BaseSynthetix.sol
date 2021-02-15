@@ -15,7 +15,6 @@ import "./interfaces/IExchanger.sol";
 import "./interfaces/IIssuer.sol";
 import "./interfaces/IRewardsDistribution.sol";
 import "./interfaces/IVirtualSynth.sol";
-import "hardhat/console.sol";
 
 
 contract BaseSynthetix is IERC20, ExternStateToken, MixinResolver, ISynthetix {
@@ -77,7 +76,6 @@ contract BaseSynthetix is IERC20, ExternStateToken, MixinResolver, ISynthetix {
     }
 
     function rewardsDistribution() internal view returns (IRewardsDistribution) {
-        console.log('rewardsDistribution in BaseSynthetix - AddressResolver');
         return IRewardsDistribution(requireAndGetAddress(CONTRACT_REWARDSDISTRIBUTION));
     }
 
