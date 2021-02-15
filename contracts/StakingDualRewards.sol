@@ -84,6 +84,12 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
         if (_totalSupply == 0) {
             return rewardPerTokenBStored;
         }
+
+        console.log('rewardPerTokenB -> rewardPerTokenBStored : %s ', rewardPerTokenBStored);
+        console.log('rewardPerTokenB -> lastUpdateTime : %s ', lastUpdateTime);
+        console.log('rewardPerTokenB -> rewardRateB : %s ', rewardRateB);
+        console.log('rewardPerTokenB -> _totalSupply : %s ', _totalSupply);
+
         return
             rewardPerTokenBStored.add(
                 lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRateB).mul(1e18).div(_totalSupply)
@@ -149,16 +155,26 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     /* ========== RESTRICTED FUNCTIONS ========== */
 
     function notifyRewardAmount(uint256 rewardA, uint256 rewardB) external onlyDualRewardsDistribution updateReward(address(0)) {
+        console.log('notifyRewardAmount called for -> rewardA: %s , rewardsB -> %s', rewardA, rewardB);
+       
         if (block.timestamp >= periodFinish) {
             rewardRateA = rewardA.div(rewardsDuration);
             rewardRateB = rewardB.div(rewardsDuration);
         } else {
             uint256 remaining = periodFinish.sub(block.timestamp);
+
+            console.log('notifyRewardAmount : remaining is ->%s ', remaining);
             
             uint256 leftoverA = remaining.mul(rewardRateA);
+
+            console.log('notifyRewardAmount : leftoverA is ->%s ', leftoverA);
+
             rewardRateA = rewardA.add(leftoverA).div(rewardsDuration);
             
             uint256 leftoverB = remaining.mul(rewardRateB);
+
+            console.log('notifyRewardAmount : leftoverB is ->%s ', leftoverB);
+
             rewardRateB = rewardB.add(leftoverB).div(rewardsDuration);
           }
 

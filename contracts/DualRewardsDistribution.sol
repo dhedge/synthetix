@@ -176,6 +176,8 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
     }
 
     function distributeRewards(uint rewardAmountA, uint rewardAmountB) external returns (bool) {
+        console.log('distributeRewards called with rewardAmountA: %s and rewardAmountB: %s ',rewardAmountA, rewardAmountB);
+        
         require(rewardAmountA > 0 || rewardAmountB > 0, "Nothing to distribute");
         require(msg.sender == authority, "Caller is not authorised");
         require(rewardEscrow != address(0), "RewardEscrow is not set");
@@ -193,14 +195,21 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
         uint remainderA = rewardAmountA;
         uint remainderB = rewardAmountB;
 
+        console.log('outside loop -> remainderA: %s and remainderB: %s ',remainderA, remainderB);
+
         // Iterate the array of distributions sending the configured amounts
         for (uint i = 0; i < distributions.length; i++) {
+
+        console.log('inside loop with rewardAmountA: %s and rewardAmountB: %s ',distributions[i].amountA, distributions[i].amountB);
+
             if (
                 distributions[i].destination != address(0) ||
-                (distributions[i].amountA != 0 && distributions[i].amountB != 0)
+                (distributions[i].amountA != 0 || distributions[i].amountB != 0)
             ) {
                 remainderA = remainderA.sub(distributions[i].amountA);
                 remainderB = remainderB.sub(distributions[i].amountB);
+
+                console.log('inside loop with remainderA: %s and remainderB: %s ',remainderA, remainderB);
 
                 // Transfer the rewardTokenA
                 IERC20(synthetixProxy).transfer(distributions[i].destination, distributions[i].amountA);
