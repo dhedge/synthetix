@@ -273,20 +273,518 @@ contract('StakingDualRewards', accounts => {
 			const rewardTokenAEarnedPostWithdraw = await stakingDualRewards.earnedA(stakingAccount1);
 			assert.bnClose(rewardTokenAEarned, rewardTokenAEarnedPostWithdraw, toUnit('0.1'));
 
-			const rewardTokenBEarnedPostWithdraw = await stakingDualRewards.earnedA(stakingAccount1);
+			const rewardTokenBEarnedPostWithdraw = await stakingDualRewards.earnedB(stakingAccount1);
 			assert.bnClose(rewardTokenBEarned, rewardTokenBEarnedPostWithdraw, toUnit('0.1'));
 
-			// Get rewards
-			const initialRewardBal = await rewardsTokenA.balanceOf(stakingAccount1);
+			// Get rewards (Reward-Token-A & Reward-Token-B Amounts for Staker)
+			const initialRewardBal_RewardTokenA = await rewardsTokenA.balanceOf(stakingAccount1);
 			await stakingDualRewards.getReward({ from: stakingAccount1 });
-			const postRewardRewardBal = await rewardsTokenA.balanceOf(stakingAccount1);
-			assert.bnGt(postRewardRewardBal, initialRewardBal);
+			const postRewardRewardBal_RewardTokenA = await rewardsTokenA.balanceOf(stakingAccount1);
+			assert.bnGt(postRewardRewardBal_RewardTokenA, initialRewardBal_RewardTokenA);
+			
+			const initialRewardBal_RewardTokenB = await rewardsTokenB.balanceOf(stakingAccount1);
+			await stakingDualRewards.getReward({ from: stakingAccount1 });
+			const postRewardRewardBal_RewardTokenB = await rewardsTokenB.balanceOf(stakingAccount1);
+			assert.bnGt(postRewardRewardBal_RewardTokenB, initialRewardBal_RewardTokenB);
 
 			// Exit
 			const preExitLPBal = await stakingToken.balanceOf(stakingAccount1);
 			await stakingDualRewards.exit({ from: stakingAccount1 });
 			const postExitLPBal = await stakingToken.balanceOf(stakingAccount1);
 			assert.bnGt(postExitLPBal, preExitLPBal);
+		});
+
+		it('stake and claim with unique dual-reward amounts', async () => {
+
+			//staking-Token balance of investor before getting funded with Staking-Token 
+			const stakingBalanceOfInvestorBefFunding = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorBefFunding, 0);
+
+			// Transfer some LP Tokens to user
+			const totalToStake = toUnit('500');
+			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
+
+			//staking-Token balance of investor before Staking
+			const stakingBalanceOfInvestorBefStake = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorBefStake, totalToStake);
+
+			// Stake LP Tokens
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
+
+			//staking-Token balance of investor After Staking
+			const stakingBalanceOfInvestorAftStake = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorAftStake, 0);
+
+			// Distribute some rewards
+			const totalToDistribute_rewardTokenA = toUnit('35000');
+			const totalToDistribute_rewardTokenB = toUnit('50000');
+
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 0);
+			await dualRewardsDistribution.addDualRewardsDistribution(
+				totalToDistribute_rewardTokenA,
+				totalToDistribute_rewardTokenB,
+				stakingDualRewards.address,
+				{
+					from: owner,
+				}
+			);
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 1);
+
+			// Transfer Reward-TokenA to the RewardsDistribution contract address
+			await rewardsTokenA.transfer(dualRewardsDistribution.address, totalToDistribute_rewardTokenA, { from: owner });
+
+			// Transfer Reward-TokenB to the RewardsDistribution contract address
+			await rewardsTokenB.transfer(dualRewardsDistribution.address, totalToDistribute_rewardTokenB, { from: owner });
+
+			const rewardTokenA_Balance_Of_DualRewardsDistributionAddress_Bef_Dist = 
+			 await rewardsTokenA.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenA_Balance_Of_DualRewardsDistributionAddress_Bef_Dist, toUnit(35000));
+
+			 const rewardTokenB_Balance_Of_DualRewardsDistributionAddress_Bef_Dist = 
+			 await rewardsTokenB.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenB_Balance_Of_DualRewardsDistributionAddress_Bef_Dist, toUnit(50000));
+
+			// Distribute Rewards called from Synthetix contract as the authority to distribute
+			await dualRewardsDistribution.distributeRewards(totalToDistribute_rewardTokenA,
+				 totalToDistribute_rewardTokenB, {
+				from: authority,
+			});
+
+			const rewardTokenA_Balance_Of_DualRewardsDistributionAddress_After_Dist = 
+			 await rewardsTokenA.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenA_Balance_Of_DualRewardsDistributionAddress_After_Dist, 0);
+
+			 const rewardTokenB_Balance_Of_DualRewardsDistributionAddress_After_Dist = 
+			 await rewardsTokenB.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenB_Balance_Of_DualRewardsDistributionAddress_After_Dist, 0);
+
+			// Period finish should be ~7 days from now
+			const periodFinish = await stakingDualRewards.periodFinish();
+			const curTimestamp = await currentTime();
+
+			assert.equal(parseInt(periodFinish.toString(), 10), curTimestamp + DAY * 7);
+
+			// Reward duration is 7 days, so we'll
+			// Fastforward time by 6 days to prevent expiration
+			await fastForward(DAY * 6);
+
+			// Make sure we earned RewardToken-A in proportion to reward per token
+
+			// RewardRateA and reward per token
+			const rewardRateA = await stakingDualRewards.rewardRateA();
+			assert.bnGt(rewardRateA, ZERO_BN);
+			
+			const rewardPerTokenA = await stakingDualRewards.rewardPerTokenA();
+			assert.bnGt(rewardPerTokenA, ZERO_BN);
+
+			const rewardTokenAEarned = await stakingDualRewards.earnedA(stakingAccount1);
+			assert.bnEqual(rewardTokenAEarned, rewardPerTokenA.mul(totalToStake).div(toUnit(1)));
+
+
+			// Make sure we earned RewardToken-B in proportion to reward per token
+
+			// RewardRateB and reward per token
+			const rewardRateB = await stakingDualRewards.rewardRateB();
+			assert.bnGt(rewardRateB, ZERO_BN);
+
+
+			const rewardPerTokenB = await stakingDualRewards.rewardPerTokenB();
+			assert.bnGt(rewardPerTokenB, ZERO_BN);
+
+			const rewardTokenBEarned = await stakingDualRewards.earnedB(stakingAccount1);
+			assert.bnEqual(rewardTokenBEarned, rewardPerTokenB.mul(totalToStake).div(toUnit(1)));
+
+			// Make sure after withdrawing, we still have the ~amount of rewardRewards
+			// The two values will be a bit different as time has "passed"
+
+			//staked LP-Tokens of investor before withdrawal
+			const stakedLPTokensOfInvestorBefWdrl = await stakingDualRewards.balanceOf(stakingAccount1);
+			assert.bnEqual(stakedLPTokensOfInvestorBefWdrl, toUnit(500));
+
+			//staking-Token balance of investor of  before withdrawal
+			const stakingTokenBalanceOfInvestorBefWdrl = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingTokenBalanceOfInvestorBefWdrl, 0);
+
+			//investor to withdraw staked LP Tokens 
+			const initialWithdraw = toUnit('100');
+			await stakingDualRewards.withdraw(initialWithdraw, { from: stakingAccount1 });
+
+			//staked balance of investor of  after withdrawal
+			const stakingTokenBalanceOfInvestorAftWdrl = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingTokenBalanceOfInvestorAftWdrl, toUnit(100));
+
+			assert.bnEqual(initialWithdraw, await stakingToken.balanceOf(stakingAccount1));
+
+			//staked balance of investor before withdrawal
+			const stakedLPTokensOfInvestorAfterWdrl = await stakingDualRewards.balanceOf(stakingAccount1);
+			assert.bnEqual(stakedLPTokensOfInvestorAfterWdrl, toUnit(400));
+
+			const rewardTokenAEarnedPostWithdraw = await stakingDualRewards.earnedA(stakingAccount1);
+			assert.bnClose(rewardTokenAEarned, rewardTokenAEarnedPostWithdraw, toUnit('0.1'));
+
+			const rewardTokenBEarnedPostWithdraw = await stakingDualRewards.earnedB(stakingAccount1);
+			assert.bnClose(rewardTokenBEarned, rewardTokenBEarnedPostWithdraw, toUnit('0.1'));
+
+			// Get rewards (Reward-Token-A & Reward-Token-B Amounts for Staker)
+			const initialRewardBal_RewardTokenA = await rewardsTokenA.balanceOf(stakingAccount1);
+			await stakingDualRewards.getReward({ from: stakingAccount1 });
+			const postRewardRewardBal_RewardTokenA = await rewardsTokenA.balanceOf(stakingAccount1);
+			assert.bnGt(postRewardRewardBal_RewardTokenA, initialRewardBal_RewardTokenA);
+			
+			const initialRewardBal_RewardTokenB = await rewardsTokenB.balanceOf(stakingAccount1);
+			await stakingDualRewards.getReward({ from: stakingAccount1 });
+			const postRewardRewardBal_RewardTokenB = await rewardsTokenB.balanceOf(stakingAccount1);
+			assert.bnGt(postRewardRewardBal_RewardTokenB, initialRewardBal_RewardTokenB);
+
+			// Exit
+			const preExitLPBal = await stakingToken.balanceOf(stakingAccount1);
+			await stakingDualRewards.exit({ from: stakingAccount1 });
+			const postExitLPBal = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnGt(postExitLPBal, preExitLPBal);
+		});
+
+
+		it('stake and claim with Non-Zero RewardTokenA and Zero RewardTokenB reward amounts', async () => {
+
+			//staking-Token balance of investor before getting funded with Staking-Token 
+			const stakingBalanceOfInvestorBefFunding = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorBefFunding, 0);
+
+			// Transfer some LP Tokens to user
+			const totalToStake = toUnit('500');
+			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
+
+			//staking-Token balance of investor before Staking
+			const stakingBalanceOfInvestorBefStake = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorBefStake, totalToStake);
+
+			// Stake LP Tokens
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
+
+			//staking-Token balance of investor After Staking
+			const stakingBalanceOfInvestorAftStake = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorAftStake, 0);
+
+			// Distribute some rewards
+			const totalToDistribute_rewardTokenA = toUnit('35000');
+			const totalToDistribute_rewardTokenB = toUnit('0');
+
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 0);
+			await dualRewardsDistribution.addDualRewardsDistribution(
+				totalToDistribute_rewardTokenA,
+				totalToDistribute_rewardTokenB,
+				stakingDualRewards.address,
+				{
+					from: owner,
+				}
+			);
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 1);
+
+			// Transfer Reward-TokenA to the RewardsDistribution contract address
+			await rewardsTokenA.transfer(dualRewardsDistribution.address, totalToDistribute_rewardTokenA, { from: owner });
+
+			// Transfer Reward-TokenB to the RewardsDistribution contract address
+			await rewardsTokenB.transfer(dualRewardsDistribution.address, totalToDistribute_rewardTokenB, { from: owner });
+
+			const rewardTokenA_Balance_Of_DualRewardsDistributionAddress_Bef_Dist = 
+			 await rewardsTokenA.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenA_Balance_Of_DualRewardsDistributionAddress_Bef_Dist, toUnit(35000));
+
+			 const rewardTokenB_Balance_Of_DualRewardsDistributionAddress_Bef_Dist = 
+			 await rewardsTokenB.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenB_Balance_Of_DualRewardsDistributionAddress_Bef_Dist, toUnit(0));
+
+			// Distribute Rewards called from Synthetix contract as the authority to distribute
+			await dualRewardsDistribution.distributeRewards(totalToDistribute_rewardTokenA,
+				 totalToDistribute_rewardTokenB, {
+				from: authority,
+			});
+
+			const rewardTokenA_Balance_Of_DualRewardsDistributionAddress_After_Dist = 
+			 await rewardsTokenA.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenA_Balance_Of_DualRewardsDistributionAddress_After_Dist, 0);
+
+			 const rewardTokenB_Balance_Of_DualRewardsDistributionAddress_After_Dist = 
+			 await rewardsTokenB.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenB_Balance_Of_DualRewardsDistributionAddress_After_Dist, 0);
+
+			// Period finish should be ~7 days from now
+			const periodFinish = await stakingDualRewards.periodFinish();
+			const curTimestamp = await currentTime();
+
+			assert.equal(parseInt(periodFinish.toString(), 10), curTimestamp + DAY * 7);
+
+			// Reward duration is 7 days, so we'll
+			// Fastforward time by 6 days to prevent expiration
+			await fastForward(DAY * 6);
+
+			// Make sure we earned RewardToken-A in proportion to reward per token
+
+			// RewardRateA and reward per token
+			const rewardRateA = await stakingDualRewards.rewardRateA();
+			assert.bnGt(rewardRateA, ZERO_BN);
+			
+			const rewardPerTokenA = await stakingDualRewards.rewardPerTokenA();
+			assert.bnGt(rewardPerTokenA, ZERO_BN);
+
+			const rewardTokenAEarned = await stakingDualRewards.earnedA(stakingAccount1);
+			assert.bnEqual(rewardTokenAEarned, rewardPerTokenA.mul(totalToStake).div(toUnit(1)));
+
+
+			// Make sure we earned RewardToken-B in proportion to reward per token
+
+			// RewardRateB and reward per token
+			const rewardRateB = await stakingDualRewards.rewardRateB();
+			assert.bnEqual(rewardRateB, ZERO_BN);
+
+			const rewardPerTokenB = await stakingDualRewards.rewardPerTokenB();
+			assert.bnEqual(rewardPerTokenB, ZERO_BN);
+
+			const rewardTokenBEarned = await stakingDualRewards.earnedB(stakingAccount1);
+			assert.bnEqual(rewardTokenBEarned, rewardPerTokenB.mul(totalToStake).div(toUnit(1)));
+
+			// Make sure after withdrawing, we still have the ~amount of rewardRewards
+			// The two values will be a bit different as time has "passed"
+
+			//staked LP-Tokens of investor before withdrawal
+			const stakedLPTokensOfInvestorBefWdrl = await stakingDualRewards.balanceOf(stakingAccount1);
+			assert.bnEqual(stakedLPTokensOfInvestorBefWdrl, toUnit(500));
+
+			//staking-Token balance of investor of  before withdrawal
+			const stakingTokenBalanceOfInvestorBefWdrl = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingTokenBalanceOfInvestorBefWdrl, 0);
+
+			//investor to withdraw staked LP Tokens 
+			const initialWithdraw = toUnit('100');
+			await stakingDualRewards.withdraw(initialWithdraw, { from: stakingAccount1 });
+
+			//staked balance of investor of  after withdrawal
+			const stakingTokenBalanceOfInvestorAftWdrl = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingTokenBalanceOfInvestorAftWdrl, toUnit(100));
+
+			assert.bnEqual(initialWithdraw, await stakingToken.balanceOf(stakingAccount1));
+
+			//staked balance of investor before withdrawal
+			const stakedLPTokensOfInvestorAfterWdrl = await stakingDualRewards.balanceOf(stakingAccount1);
+			assert.bnEqual(stakedLPTokensOfInvestorAfterWdrl, toUnit(400));
+
+			const rewardTokenAEarnedPostWithdraw = await stakingDualRewards.earnedA(stakingAccount1);
+			assert.bnClose(rewardTokenAEarned, rewardTokenAEarnedPostWithdraw, toUnit('0.1'));
+
+			const rewardTokenBEarnedPostWithdraw = await stakingDualRewards.earnedB(stakingAccount1);
+			assert.bnClose(rewardTokenBEarned, rewardTokenBEarnedPostWithdraw, toUnit('0.1'));
+
+			// Get rewards (Reward-Token-A & Reward-Token-B Amounts for Staker)
+			const initialRewardBal_RewardTokenA = await rewardsTokenA.balanceOf(stakingAccount1);
+			await stakingDualRewards.getReward({ from: stakingAccount1 });
+			const postRewardRewardBal_RewardTokenA = await rewardsTokenA.balanceOf(stakingAccount1);
+			assert.bnGt(postRewardRewardBal_RewardTokenA, initialRewardBal_RewardTokenA);
+			
+			const initialRewardBal_RewardTokenB = await rewardsTokenB.balanceOf(stakingAccount1);
+			await stakingDualRewards.getReward({ from: stakingAccount1 });
+			const postRewardRewardBal_RewardTokenB = await rewardsTokenB.balanceOf(stakingAccount1);
+			assert.bnEqual(postRewardRewardBal_RewardTokenB, initialRewardBal_RewardTokenB);
+
+			// Exit
+			const preExitLPBal = await stakingToken.balanceOf(stakingAccount1);
+			await stakingDualRewards.exit({ from: stakingAccount1 });
+			const postExitLPBal = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnGt(postExitLPBal, preExitLPBal);
+		});
+
+
+		it('stake and claim with Zero RewardTokenA and Non-Zero RewardTokenB reward amounts', async () => {
+
+			//staking-Token balance of investor before getting funded with Staking-Token 
+			const stakingBalanceOfInvestorBefFunding = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorBefFunding, 0);
+
+			// Transfer some LP Tokens to user
+			const totalToStake = toUnit('500');
+			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
+
+			//staking-Token balance of investor before Staking
+			const stakingBalanceOfInvestorBefStake = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorBefStake, totalToStake);
+
+			// Stake LP Tokens
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
+
+			//staking-Token balance of investor After Staking
+			const stakingBalanceOfInvestorAftStake = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorAftStake, 0);
+
+			// Distribute some rewards
+			const totalToDistribute_rewardTokenA = toUnit('0');
+			const totalToDistribute_rewardTokenB = toUnit('35000');
+
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 0);
+			await dualRewardsDistribution.addDualRewardsDistribution(
+				totalToDistribute_rewardTokenA,
+				totalToDistribute_rewardTokenB,
+				stakingDualRewards.address,
+				{
+					from: owner,
+				}
+			);
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 1);
+
+			// Transfer Reward-TokenA to the RewardsDistribution contract address
+			await rewardsTokenA.transfer(dualRewardsDistribution.address, totalToDistribute_rewardTokenA, { from: owner });
+
+			// Transfer Reward-TokenB to the RewardsDistribution contract address
+			await rewardsTokenB.transfer(dualRewardsDistribution.address, totalToDistribute_rewardTokenB, { from: owner });
+
+			const rewardTokenA_Balance_Of_DualRewardsDistributionAddress_Bef_Dist = 
+			 await rewardsTokenA.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenA_Balance_Of_DualRewardsDistributionAddress_Bef_Dist, toUnit(0));
+
+			 const rewardTokenB_Balance_Of_DualRewardsDistributionAddress_Bef_Dist = 
+			 await rewardsTokenB.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenB_Balance_Of_DualRewardsDistributionAddress_Bef_Dist, toUnit(35000));
+
+			// Distribute Rewards called from Synthetix contract as the authority to distribute
+			await dualRewardsDistribution.distributeRewards(totalToDistribute_rewardTokenA,
+				 totalToDistribute_rewardTokenB, {
+				from: authority,
+			});
+
+			const rewardTokenA_Balance_Of_DualRewardsDistributionAddress_After_Dist = 
+			 await rewardsTokenA.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenA_Balance_Of_DualRewardsDistributionAddress_After_Dist, 0);
+
+			 const rewardTokenB_Balance_Of_DualRewardsDistributionAddress_After_Dist = 
+			 await rewardsTokenB.balanceOf(dualRewardsDistribution.address);
+			 assert.bnEqual(rewardTokenB_Balance_Of_DualRewardsDistributionAddress_After_Dist, 0);
+
+			// Period finish should be ~7 days from now
+			const periodFinish = await stakingDualRewards.periodFinish();
+			const curTimestamp = await currentTime();
+
+			assert.equal(parseInt(periodFinish.toString(), 10), curTimestamp + DAY * 7);
+
+			// Reward duration is 7 days, so we'll
+			// Fastforward time by 6 days to prevent expiration
+			await fastForward(DAY * 6);
+
+			// Make sure we earned RewardToken-A in proportion to reward per token
+
+			// RewardRateA and reward per token
+			const rewardRateA = await stakingDualRewards.rewardRateA();
+			assert.bnEqual(rewardRateA, ZERO_BN);
+			
+			const rewardPerTokenA = await stakingDualRewards.rewardPerTokenA();
+			assert.bnEqual(rewardPerTokenA, ZERO_BN);
+
+			const rewardTokenAEarned = await stakingDualRewards.earnedA(stakingAccount1);
+			assert.bnEqual(rewardTokenAEarned, rewardPerTokenA.mul(totalToStake).div(toUnit(1)));
+
+
+			// Make sure we earned RewardToken-B in proportion to reward per token
+
+			// RewardRateB and reward per token
+			const rewardRateB = await stakingDualRewards.rewardRateB();
+			assert.bnGt(rewardRateB, ZERO_BN);
+
+			const rewardPerTokenB = await stakingDualRewards.rewardPerTokenB();
+			assert.bnGt(rewardPerTokenB, ZERO_BN);
+
+			const rewardTokenBEarned = await stakingDualRewards.earnedB(stakingAccount1);
+			assert.bnEqual(rewardTokenBEarned, rewardPerTokenB.mul(totalToStake).div(toUnit(1)));
+
+			// Make sure after withdrawing, we still have the ~amount of rewardRewards
+			// The two values will be a bit different as time has "passed"
+
+			//staked LP-Tokens of investor before withdrawal
+			const stakedLPTokensOfInvestorBefWdrl = await stakingDualRewards.balanceOf(stakingAccount1);
+			assert.bnEqual(stakedLPTokensOfInvestorBefWdrl, toUnit(500));
+
+			//staking-Token balance of investor of  before withdrawal
+			const stakingTokenBalanceOfInvestorBefWdrl = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingTokenBalanceOfInvestorBefWdrl, 0);
+
+			//investor to withdraw staked LP Tokens 
+			const initialWithdraw = toUnit('100');
+			await stakingDualRewards.withdraw(initialWithdraw, { from: stakingAccount1 });
+
+			//staked balance of investor of  after withdrawal
+			const stakingTokenBalanceOfInvestorAftWdrl = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingTokenBalanceOfInvestorAftWdrl, toUnit(100));
+
+			assert.bnEqual(initialWithdraw, await stakingToken.balanceOf(stakingAccount1));
+
+			//staked balance of investor before withdrawal
+			const stakedLPTokensOfInvestorAfterWdrl = await stakingDualRewards.balanceOf(stakingAccount1);
+			assert.bnEqual(stakedLPTokensOfInvestorAfterWdrl, toUnit(400));
+
+			const rewardTokenAEarnedPostWithdraw = await stakingDualRewards.earnedA(stakingAccount1);
+			assert.bnClose(rewardTokenAEarned, rewardTokenAEarnedPostWithdraw, toUnit('0.1'));
+
+			const rewardTokenBEarnedPostWithdraw = await stakingDualRewards.earnedB(stakingAccount1);
+			assert.bnClose(rewardTokenBEarned, rewardTokenBEarnedPostWithdraw, toUnit('0.1'));
+
+			// Get rewards (Reward-Token-A & Reward-Token-B Amounts for Staker)
+			const initialRewardBal_RewardTokenA = await rewardsTokenA.balanceOf(stakingAccount1);
+			await stakingDualRewards.getReward({ from: stakingAccount1 });
+			const postRewardRewardBal_RewardTokenA = await rewardsTokenA.balanceOf(stakingAccount1);
+			assert.bnEqual(postRewardRewardBal_RewardTokenA, initialRewardBal_RewardTokenA);
+
+			const initialRewardBal_RewardTokenB = await rewardsTokenB.balanceOf(stakingAccount1);
+			await stakingDualRewards.getReward({ from: stakingAccount1 });
+			const postRewardRewardBal_RewardTokenB = await rewardsTokenB.balanceOf(stakingAccount1);
+			assert.bnGt(postRewardRewardBal_RewardTokenB, initialRewardBal_RewardTokenB);
+
+			// Exit
+			const preExitLPBal = await stakingToken.balanceOf(stakingAccount1);
+			await stakingDualRewards.exit({ from: stakingAccount1 });
+			const postExitLPBal = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnGt(postExitLPBal, preExitLPBal);
+		});
+
+
+		it('stake and claim with Zero reward amounts', async () => {
+
+			//staking-Token balance of investor before getting funded with Staking-Token 
+			const stakingBalanceOfInvestorBefFunding = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorBefFunding, 0);
+
+			// Transfer some LP Tokens to user
+			const totalToStake = toUnit('500');
+			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
+
+			//staking-Token balance of investor before Staking
+			const stakingBalanceOfInvestorBefStake = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorBefStake, totalToStake);
+
+			// Stake LP Tokens
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
+
+			//staking-Token balance of investor After Staking
+			const stakingBalanceOfInvestorAftStake = await stakingToken.balanceOf(stakingAccount1);
+			assert.bnEqual(stakingBalanceOfInvestorAftStake, 0);
+
+			// Distribute some rewards
+			const totalToDistribute_rewardTokenA = toUnit('0');
+			const totalToDistribute_rewardTokenB = toUnit('0');
+
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 0);
+			
+			//"Requires at least one non-zero reward amount"
+			await assert.revert(
+				dualRewardsDistribution.addDualRewardsDistribution(
+					totalToDistribute_rewardTokenA,
+					totalToDistribute_rewardTokenB,
+					stakingDualRewards.address,
+					{
+						from: owner,
+					}
+				),
+				'Requires at least one non-zero reward amount'
+			);
 		});
 	});
 });
