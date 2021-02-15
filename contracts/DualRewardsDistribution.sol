@@ -12,6 +12,7 @@ import "./interfaces/IERC20.sol";
 import "./interfaces/IFeePool.sol";
 import "./interfaces/IDualRewardsDistribution.sol";
 
+
 // https://docs.synthetix.io/contracts/source/contracts/rewardsdistribution
 contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
     using SafeMath for uint;
@@ -27,7 +28,7 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
      */
     address public synthetixProxy;
 
-        /**
+    /**
      * @notice Address of the ProxyERC20
      */
     address public rewardTokenProxy;
@@ -104,18 +105,33 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
      * @param destination The destination address. Send the same address to keep or different address to change it.
      */
 
-    function addDualRewardsDistribution(uint amountA, uint amountB, address destination) external onlyOwner returns (bool) {
+    function addDualRewardsDistribution(
+        uint amountA,
+        uint amountB,
+        address destination
+    ) external onlyOwner returns (bool) {
         require(destination != address(0), "Cant add a zero address");
-        require(amountA != 0, "Cant add a zero reward-amountA");
-        require(amountB != 0, "Cant add a zero reward-amountB");
+        require(amountA != 0 || amountB != 0, "Requires at least one non-zero reward amount");
 
-        console.log('addRewardDistribution for destination: %s', destination);
+        console.log("addRewardDistribution for destination: %s", destination);
 
-        DualRewardsDistributionData memory dualRewardsDistribution = 
-        DualRewardsDistributionData(synthetixProxy, amountA, rewardTokenProxy, amountB, destination);
+        DualRewardsDistributionData memory dualRewardsDistribution = DualRewardsDistributionData(
+            synthetixProxy,
+            amountA,
+            rewardTokenProxy,
+            amountB,
+            destination
+        );
         distributions.push(dualRewardsDistribution);
 
-        emit DualRewardDistributionAdded(distributions.length - 1, synthetixProxy, amountA, rewardTokenProxy, amountB, destination);
+        emit DualRewardDistributionAdded(
+            distributions.length - 1,
+            synthetixProxy,
+            amountA,
+            rewardTokenProxy,
+            amountB,
+            destination
+        );
         return true;
     }
 
@@ -179,7 +195,10 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
 
         // Iterate the array of distributions sending the configured amounts
         for (uint i = 0; i < distributions.length; i++) {
-            if (distributions[i].destination != address(0) || (distributions[i].amountA != 0 && distributions[i].amountB != 0) ){
+            if (
+                distributions[i].destination != address(0) ||
+                (distributions[i].amountA != 0 && distributions[i].amountB != 0)
+            ) {
                 remainderA = remainderA.sub(distributions[i].amountA);
                 remainderB = remainderB.sub(distributions[i].amountB);
 
@@ -190,7 +209,11 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
                 IERC20(rewardTokenProxy).transfer(distributions[i].destination, distributions[i].amountB);
 
                 // If the contract implements RewardsDistributionRecipient.sol, inform it how many SNX its received.
-                bytes memory payload = abi.encodeWithSignature("notifyRewardAmount(uint256,uint256)", distributions[i].amountA, distributions[i].amountB);
+                bytes memory payload = abi.encodeWithSignature(
+                    "notifyRewardAmount(uint256,uint256)",
+                    distributions[i].amountA,
+                    distributions[i].amountB
+                );
 
                 // solhint-disable avoid-low-level-calls
                 (bool success, ) = distributions[i].destination.call(payload);
@@ -210,7 +233,6 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
         emit DualRewardsDistributed(rewardAmountA, rewardAmountB);
         return true;
     }
-    
 
     /* ========== VIEWS ========== */
 
@@ -222,6 +244,13 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
     }
 
     /* ========== Events ========== */
-    event DualRewardDistributionAdded(uint index, address rewardTokenAProxy, uint amountA, address rewardTokenBProxy, uint amountB, address destination);
+    event DualRewardDistributionAdded(
+        uint index,
+        address rewardTokenAProxy,
+        uint amountA,
+        address rewardTokenBProxy,
+        uint amountB,
+        address destination
+    );
     event DualRewardsDistributed(uint amountA, uint amountB);
 }

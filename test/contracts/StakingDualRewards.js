@@ -91,18 +91,19 @@ contract('StakingDualRewards', accounts => {
 			accounts,
 			contract: 'StakingDualRewards',
 			args: [
-				   owner,
-				   dualRewardsDistribution.address,
-				   rewardsTokenA.address,
-				   rewardsTokenB.address,
-				   stakingToken.address,
-				],
+				owner,
+				dualRewardsDistribution.address,
+				rewardsTokenA.address,
+				rewardsTokenB.address,
+				stakingToken.address,
+			],
 		});
 
 		await Promise.all([
 			dualRewardsDistribution.setAuthority(authority, { from: owner }),
 			dualRewardsDistribution.setRewardEscrow(rewardEscrowAddress, { from: owner }),
 			dualRewardsDistribution.setSynthetixProxy(rewardsTokenA.address, { from: owner }),
+			dualRewardsDistribution.setRewardTokenProxy(rewardsTokenB.address, { from: owner }),
 			dualRewardsDistribution.setFeePoolProxy(feePool.address, { from: owner }),
 		]);
 
@@ -211,7 +212,9 @@ contract('StakingDualRewards', accounts => {
 		it('should revert calling stake() when paused', async () => {
 			const totalToStake = toUnit('100');
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 
 			await assert.revert(
 				stakingDualRewards.stake(totalToStake, { from: stakingAccount1 }),
@@ -223,7 +226,9 @@ contract('StakingDualRewards', accounts => {
 
 			const totalToStake = toUnit('100');
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 		});
@@ -270,9 +275,13 @@ contract('StakingDualRewards', accounts => {
 			assert.bnEqual(ownerMOARBalanceAfter.sub(ownerMOARBalanceBefore), amount);
 		});
 		it('should emit Recovered event', async () => {
-			const transaction = await stakingDualRewards.recoverERC20(externalRewardsToken.address, amount, {
-				from: owner,
-			});
+			const transaction = await stakingDualRewards.recoverERC20(
+				externalRewardsToken.address,
+				amount,
+				{
+					from: owner,
+				}
+			);
 			assert.eventEqual(transaction, 'Recovered', {
 				token: externalRewardsToken.address,
 				amount: amount,
@@ -307,7 +316,9 @@ contract('StakingDualRewards', accounts => {
 		it('should be > 0', async () => {
 			const totalToStake = toUnit('100');
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			const totalSupply = await stakingDualRewards.totalSupply();
@@ -330,7 +341,9 @@ contract('StakingDualRewards', accounts => {
 		it('staking increases staking balance', async () => {
 			const totalToStake = toUnit('100');
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 
 			const initialStakeBal = await stakingDualRewards.balanceOf(stakingAccount1);
 			const initialLpBal = await stakingToken.balanceOf(stakingAccount1);
@@ -357,7 +370,9 @@ contract('StakingDualRewards', accounts => {
 		it('should be > 0 when staking', async () => {
 			const totalToStake = toUnit('100');
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			const rewardValue = toUnit(5000.0);
@@ -399,7 +414,9 @@ contract('StakingDualRewards', accounts => {
 			const totalToDistribute = toUnit('5000');
 
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
@@ -410,7 +427,7 @@ contract('StakingDualRewards', accounts => {
 			await fastForward(DAY * 7);
 
 			const earnedFirst = await stakingDualRewards.earnedA(stakingAccount1);
-			console.log('earnedFirst: '+ earnedFirst.toString());
+			console.log('earnedFirst: ' + earnedFirst.toString());
 			await setRewardsTokenExchangeRate();
 
 			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
@@ -421,7 +438,7 @@ contract('StakingDualRewards', accounts => {
 			await fastForward(DAY * 7);
 
 			const earnedSecond = await stakingDualRewards.earnedA(stakingAccount1);
-			console.log('earnedSecond (After Fastforward): '+ earnedSecond.toString());
+			console.log('earnedSecond (After Fastforward): ' + earnedSecond.toString());
 
 			assert.bnEqual(earnedSecond, earnedFirst.add(earnedFirst));
 		});
@@ -433,7 +450,9 @@ contract('StakingDualRewards', accounts => {
 			const totalToDistribute = toUnit('5000');
 
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
@@ -470,7 +489,9 @@ contract('StakingDualRewards', accounts => {
 			const totalToDistribute = toUnit('5000');
 
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
@@ -490,7 +511,9 @@ contract('StakingDualRewards', accounts => {
 			const totalToDistribute = toUnit('5000');
 
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
@@ -518,7 +541,9 @@ contract('StakingDualRewards', accounts => {
 			const totalToDistribute = toUnit('5000');
 
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
@@ -569,13 +594,18 @@ contract('StakingDualRewards', accounts => {
 
 	describe('withdraw()', () => {
 		it('cannot withdraw if nothing staked', async () => {
-			await assert.revert(stakingDualRewards.withdraw(toUnit('100')), 'SafeMath: subtraction overflow');
+			await assert.revert(
+				stakingDualRewards.withdraw(toUnit('100')),
+				'SafeMath: subtraction overflow'
+			);
 		});
 
 		it('should increases lp token balance and decreases staking balance', async () => {
 			const totalToStake = toUnit('100');
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			const initialStakingTokenBal = await stakingToken.balanceOf(stakingAccount1);
@@ -621,7 +651,9 @@ contract('StakingDualRewards', accounts => {
 			const totalToDistribute = toUnit('5000');
 
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
@@ -698,7 +730,10 @@ contract('StakingDualRewards', accounts => {
 			await stakingDualRewards.setDualRewardsDistribution(dualRewardsDistribution.address, {
 				from: owner,
 			});
-			assert.equal(await stakingDualRewards.dualRewardsDistribution(), dualRewardsDistribution.address);
+			assert.equal(
+				await stakingDualRewards.dualRewardsDistribution(),
+				dualRewardsDistribution.address
+			);
 
 			await setRewardsTokenExchangeRate();
 		});
@@ -709,15 +744,22 @@ contract('StakingDualRewards', accounts => {
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
 
 			// Stake LP Tokens
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
+			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+				from: stakingAccount1,
+			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			// Distribute some rewards
 			const totalToDistribute = toUnit('35000');
 			assert.equal(await dualRewardsDistribution.distributionsLength(), 0);
-			await dualRewardsDistribution.addDualRewardsDistribution( totalToDistribute, 0, stakingDualRewards.address, {
-				from: owner,
-			});
+			await dualRewardsDistribution.addDualRewardsDistribution(
+				totalToDistribute,
+				0,
+				stakingDualRewards.address,
+				{
+					from: owner,
+				}
+			);
 			assert.equal(await dualRewardsDistribution.distributionsLength(), 1);
 
 			console.log('rewardsTokenA Address is: ', rewardsTokenA.address);
@@ -725,10 +767,12 @@ contract('StakingDualRewards', accounts => {
 			console.log('dualRewardsDistribution.address is: ', dualRewardsDistribution.address);
 
 			// Transfer Rewards to the RewardsDistribution contract address
-			await rewardsTokenA.transfer(dualRewardsDistribution.address, totalToDistribute, { from: owner });
+			await rewardsTokenA.transfer(dualRewardsDistribution.address, totalToDistribute, {
+				from: owner,
+			});
 
 			// Distribute Rewards called from Synthetix contract as the authority to distribute
-			await dualRewardsDistribution.distributeRewards(totalToDistribute, {
+			await dualRewardsDistribution.distributeRewards(totalToDistribute, 0, {
 				from: authority,
 			});
 
@@ -749,11 +793,11 @@ contract('StakingDualRewards', accounts => {
 
 			// Reward rate and reward per token
 			const rewardRateA = await stakingDualRewards.rewardRateA();
-			console.log('rewardRateA is: ',rewardRateA);
+			console.log('rewardRateA is: ', rewardRateA);
 			assert.bnGt(rewardRateA, ZERO_BN);
 
 			const rewardPerToken = await stakingDualRewards.rewardPerTokenA();
-			console.log('rewardPerToken is: ',rewardPerToken.toString());
+			console.log('rewardPerToken is: ', rewardPerToken.toString());
 			assert.bnGt(rewardPerToken, ZERO_BN);
 
 			// Make sure we earned in proportion to reward per token
