@@ -91,18 +91,19 @@ contract('StakingDualRewards', accounts => {
 			accounts,
 			contract: 'StakingDualRewards',
 			args: [
-				   owner,
-				   dualRewardsDistribution.address,
-				   rewardsTokenA.address,
-				   rewardsTokenB.address,
-				   stakingToken.address,
-				],
+				owner,
+				dualRewardsDistribution.address,
+				rewardsTokenA.address,
+				rewardsTokenB.address,
+				stakingToken.address,
+			],
 		});
 
 		await Promise.all([
 			dualRewardsDistribution.setAuthority(authority, { from: owner }),
 			dualRewardsDistribution.setRewardEscrow(rewardEscrowAddress, { from: owner }),
 			dualRewardsDistribution.setSynthetixProxy(rewardsTokenA.address, { from: owner }),
+			dualRewardsDistribution.setRewardTokenProxy(rewardsTokenB.address, { from: owner }),
 			dualRewardsDistribution.setFeePoolProxy(feePool.address, { from: owner }),
 		]);
 
@@ -112,7 +113,7 @@ contract('StakingDualRewards', accounts => {
 		await setRewardsTokenExchangeRate();
 	});
 
-	it('ensure only known functions are mutative', () => {
+	it('ensure only known functions are mutative', (done) => {
 		ensureOnlyExpectedMutativeFunctions({
 			abi: stakingDualRewards.abi,
 			ignoreParents: ['ReentrancyGuard', 'Owned'],
@@ -129,25 +130,7 @@ contract('StakingDualRewards', accounts => {
 				'updatePeriodFinish',
 			],
 		});
-		//done();
-	});
-
-	describe('Constructor & Settings', () => {
-		it('should set rewards token on constructor', async () => {
-			console.log('running should set rewards token on constructor');
-			assert.equal(await stakingDualRewards.rewardsTokenA(), rewardsTokenA.address);
-		});
-
-		it('should staking token on constructor', async () => {
-			console.log('running should staking token on constructor');
-			assert.equal(await stakingDualRewards.stakingToken(), stakingToken.address);
-		});
-
-		it('should set owner on constructor', async () => {
-			console.log('running should set owner on constructor');
-			const ownerAddress = await stakingDualRewards.owner();
-			assert.equal(ownerAddress, owner);
-		});
+		done();
 	});
 
 	describe('Integration Tests', () => {
@@ -186,9 +169,14 @@ contract('StakingDualRewards', accounts => {
 			// Distribute some rewards
 			const totalToDistribute = toUnit('35000');
 			assert.equal(await dualRewardsDistribution.distributionsLength(), 0);
-			await dualRewardsDistribution.addRewardDistribution(stakingDualRewards.address, totalToDistribute, {
-				from: owner,
-			});
+			await dualRewardsDistribution.addDualRewardsDistribution(
+				totalToDistribute,
+				0,
+				stakingDualRewards.address,
+				{
+					from: owner,
+				}
+			);
 			assert.equal(await dualRewardsDistribution.distributionsLength(), 1);
 
 			console.log('rewardsTokenA Address is: ', rewardsTokenA.address);
@@ -204,7 +192,7 @@ contract('StakingDualRewards', accounts => {
 			 rewardTokenBalance_Of_DualRewardsDistributionAddress_Bef_Dist.toString());
  	
 			// Distribute Rewards called from Synthetix contract as the authority to distribute
-			await dualRewardsDistribution.distributeRewards(totalToDistribute, {
+			await dualRewardsDistribution.distributeRewards(totalToDistribute, 0, {
 				from: authority,
 			});
 

@@ -15,7 +15,7 @@ contract('StakingDualRewards', accounts => {
 		authority,
 		rewardEscrowAddress,
 		stakingAccount1,
-		mockRewardsDistributionAddress,
+		mockDualRewardsDistributionAddress,
 	] = accounts;
 
 	// Synthetix is the rewardsTokenA
@@ -25,7 +25,7 @@ contract('StakingDualRewards', accounts => {
 		externalRewardsToken,
 		exchangeRates,
 		stakingDualRewards,
-		rewardsDistribution,
+		dualRewardsDistribution,
 		systemSettings,
 		feePool;
 
@@ -70,22 +70,29 @@ contract('StakingDualRewards', accounts => {
 		}));
 
 		({
-			RewardsDistribution: rewardsDistribution,
+			DualRewardsDistribution: dualRewardsDistribution,
 			FeePool: feePool,
 			Synthetix: rewardsTokenA,
 			ExchangeRates: exchangeRates,
 			SystemSettings: systemSettings,
 		} = await setupAllContracts({
 			accounts,
-			contracts: ['RewardsDistribution', 'Synthetix', 'FeePool', 'SystemSettings'],
+			contracts: ['DualRewardsDistribution', 'Synthetix', 'FeePool', 'SystemSettings'],
 		}));
+
+		console.log(`stakingAccount1 is: ${stakingAccount1}`);
+		console.log('stakingToken address: ', stakingToken.address);
+		console.log(`rewardsTokenA is: SNX with address: ${rewardsTokenA.address} `);
+		console.log(`rewardsTokenB is: DHT with address: ${rewardsTokenB.address} `);
+		console.log(`externalRewardsToken is: MOAR with address: ${externalRewardsToken.address} `);
+		console.log('dualRewardsDistribution contract Address is: ', dualRewardsDistribution.address);
 
 		stakingDualRewards = await setupContract({
 			accounts,
 			contract: 'StakingDualRewards',
 			args: [
 				owner,
-				rewardsDistribution.address,
+				dualRewardsDistribution.address,
 				rewardsTokenA.address,
 				rewardsTokenB.address,
 				stakingToken.address,
@@ -93,13 +100,14 @@ contract('StakingDualRewards', accounts => {
 		});
 
 		await Promise.all([
-			rewardsDistribution.setAuthority(authority, { from: owner }),
-			rewardsDistribution.setRewardEscrow(rewardEscrowAddress, { from: owner }),
-			rewardsDistribution.setSynthetixProxy(rewardsTokenA.address, { from: owner }),
-			rewardsDistribution.setFeePoolProxy(feePool.address, { from: owner }),
+			dualRewardsDistribution.setAuthority(authority, { from: owner }),
+			dualRewardsDistribution.setRewardEscrow(rewardEscrowAddress, { from: owner }),
+			dualRewardsDistribution.setSynthetixProxy(rewardsTokenA.address, { from: owner }),
+			dualRewardsDistribution.setRewardTokenProxy(rewardsTokenB.address, { from: owner }),
+			dualRewardsDistribution.setFeePoolProxy(feePool.address, { from: owner }),
 		]);
 
-		await stakingDualRewards.setRewardsDistribution(mockRewardsDistributionAddress, {
+		await stakingDualRewards.setDualRewardsDistribution(mockDualRewardsDistributionAddress, {
 			from: owner,
 		});
 		await setRewardsTokenExchangeRate();
@@ -116,7 +124,7 @@ contract('StakingDualRewards', accounts => {
 				'getReward',
 				'notifyRewardAmount',
 				'setPaused',
-				'setRewardsDistribution',
+				'setDualRewardsDistribution',
 				'setRewardsDuration',
 				'recoverERC20',
 				'updatePeriodFinish',
@@ -127,10 +135,10 @@ contract('StakingDualRewards', accounts => {
 	describe('Integration Tests', () => {
 		before(async () => {
 			// Set rewardDistribution address
-			await stakingDualRewards.setRewardsDistribution(rewardsDistribution.address, {
+			await stakingDualRewards.setDualRewardsDistribution(dualRewardsDistribution.address, {
 				from: owner,
 			});
-			assert.equal(await stakingDualRewards.rewardsDistribution(), rewardsDistribution.address);
+			assert.equal(await stakingDualRewards.dualRewardsDistribution(), dualRewardsDistribution.address);
 
 			await setRewardsTokenExchangeRate();
 		});
@@ -139,10 +147,13 @@ contract('StakingDualRewards', accounts => {
 	describe('Integration Tests', () => {
 		before(async () => {
 			// Set rewardDistribution address
-			await stakingDualRewards.setRewardsDistribution(rewardsDistribution.address, {
+			await stakingDualRewards.setDualRewardsDistribution(dualRewardsDistribution.address, {
 				from: owner,
 			});
-			assert.equal(await stakingDualRewards.rewardsDistribution(), rewardsDistribution.address);
+			assert.equal(
+				await stakingDualRewards.dualRewardsDistribution(),
+				dualRewardsDistribution.address
+			);
 
 			await setRewardsTokenExchangeRate();
 		});
@@ -152,23 +163,34 @@ contract('StakingDualRewards', accounts => {
 			const totalToStake = toUnit('500');
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
 
-			// Stake LP Tokens
-			await stakingToken.approve(stakingDualRewards.address, totalToStake, { from: stakingAccount1 });
-			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
+				// Stake LP Tokens
+				await stakingToken.approve(stakingDualRewards.address, totalToStake, {
+					from: stakingAccount1,
+				});
+				await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
 			// Distribute some rewards
 			const totalToDistribute = toUnit('35000');
-			assert.equal(await rewardsDistribution.distributionsLength(), 0);
-			await rewardsDistribution.addRewardDistribution(stakingDualRewards.address, totalToDistribute, {
-				from: owner,
-			});
-			assert.equal(await rewardsDistribution.distributionsLength(), 1);
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 0);
+			await dualRewardsDistribution.addDualRewardsDistribution(
+				totalToDistribute,
+				0,
+				stakingDualRewards.address,
+				{
+					from: owner,
+				}
+			);
+			assert.equal(await dualRewardsDistribution.distributionsLength(), 1);
+
+			console.log('rewardsTokenA Address is: ', rewardsTokenA.address);
+			console.log('rewardsTokenB Address is: ', rewardsTokenB.address);
+			console.log('dualRewardsDistribution.address is: ', dualRewardsDistribution.address);
 
 			// Transfer Rewards to the RewardsDistribution contract address
-			await rewardsTokenA.transfer(rewardsDistribution.address, totalToDistribute, { from: owner });
+			await rewardsTokenA.transfer(dualRewardsDistribution.address, totalToDistribute, { from: owner });
 
 			// Distribute Rewards called from Synthetix contract as the authority to distribute
-			await rewardsDistribution.distributeRewards(totalToDistribute, {
+			await dualRewardsDistribution.distributeRewards(totalToDistribute, 0, {
 				from: authority,
 			});
 
