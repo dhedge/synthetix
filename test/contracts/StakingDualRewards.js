@@ -715,7 +715,7 @@ contract('StakingDualRewards', accounts => {
 			// Distribute some rewards
 			const totalToDistribute = toUnit('35000');
 			assert.equal(await dualRewardsDistribution.distributionsLength(), 0);
-			await dualRewardsDistribution.addDualRewardDistribution(stakingDualRewards.address, totalToDistribute, {
+			await dualRewardsDistribution.addDualRewardsDistribution( totalToDistribute, 0, stakingDualRewards.address, {
 				from: owner,
 			});
 			assert.equal(await dualRewardsDistribution.distributionsLength(), 1);
