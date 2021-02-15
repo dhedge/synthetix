@@ -14,7 +14,6 @@ import "./interfaces/ISystemStatus.sol";
 import "./interfaces/IExchanger.sol";
 import "./interfaces/IIssuer.sol";
 import "./interfaces/IRewardsDistribution.sol";
-import "./interfaces/IDualRewardsDistribution.sol";
 import "./interfaces/IVirtualSynth.sol";
 import "hardhat/console.sol";
 
@@ -34,7 +33,6 @@ contract BaseSynthetix is IERC20, ExternStateToken, MixinResolver, ISynthetix {
     bytes32 private constant CONTRACT_EXCHANGER = "Exchanger";
     bytes32 private constant CONTRACT_ISSUER = "Issuer";
     bytes32 private constant CONTRACT_REWARDSDISTRIBUTION = "RewardsDistribution";
-    bytes32 private constant CONTRACT_DUALREWARDSDISTRIBUTION = "DualRewardsDistribution";
 
     // ========== CONSTRUCTOR ==========
 
@@ -60,7 +58,6 @@ contract BaseSynthetix is IERC20, ExternStateToken, MixinResolver, ISynthetix {
         addresses[2] = CONTRACT_EXCHANGER;
         addresses[3] = CONTRACT_ISSUER;
         addresses[4] = CONTRACT_REWARDSDISTRIBUTION;
-        //addresses[5] = CONTRACT_DUALREWARDSDISTRIBUTION;
     }
 
     function synthetixState() internal view returns (ISynthetixState) {
@@ -83,10 +80,6 @@ contract BaseSynthetix is IERC20, ExternStateToken, MixinResolver, ISynthetix {
         console.log('rewardsDistribution in BaseSynthetix - AddressResolver');
         return IRewardsDistribution(requireAndGetAddress(CONTRACT_REWARDSDISTRIBUTION));
     }
-
-     function dualRewardsDistribution() internal view returns (IDualRewardsDistribution) {
-         return IDualRewardsDistribution(requireAndGetAddress(CONTRACT_DUALREWARDSDISTRIBUTION));
-     }
 
     function debtBalanceOf(address account, bytes32 currencyKey) external view returns (uint) {
         return issuer().debtBalanceOf(account, currencyKey);

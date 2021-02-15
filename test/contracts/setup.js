@@ -104,7 +104,7 @@ const setupContract = async ({
 	skipPostDeploy = false,
 	properties = {},
 }) => {
-	const [deployerAccount, owner, oracle, fundsWallet] = accounts;
+	const [deployerAccount, owner, oracle, fundsWallet, rewardsTokenProxy] = accounts;
 
 	const artifact = artifacts.require(source || contract);
 
@@ -242,6 +242,7 @@ const setupContract = async ({
 			owner,
 			tryGetAddressOf('Synthetix'),
 			tryGetAddressOf('ProxyERC20Synthetix'),
+			rewardsTokenProxy,
 			tryGetAddressOf('RewardEscrowV2'),
 			tryGetAddressOf('ProxyFeePool'),
 		]

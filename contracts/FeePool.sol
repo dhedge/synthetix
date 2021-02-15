@@ -26,7 +26,6 @@ import "./interfaces/IDelegateApprovals.sol";
 import "./interfaces/IRewardsDistribution.sol";
 import "./interfaces/IEtherCollateralsUSD.sol";
 import "./interfaces/ICollateralManager.sol";
-import "./interfaces/IDualRewardsDistribution.sol";
 
 
 // https://docs.synthetix.io/contracts/source/contracts/feepool
@@ -75,7 +74,6 @@ contract FeePool is Owned, Proxyable, LimitedSetup, MixinSystemSettings, IFeePoo
     bytes32 private constant CONTRACT_ETH_COLLATERAL_SUSD = "EtherCollateralsUSD";
     bytes32 private constant CONTRACT_COLLATERALMANAGER = "CollateralManager";
     bytes32 private constant CONTRACT_REWARDSDISTRIBUTION = "RewardsDistribution";
-    bytes32 private constant CONTRACT_DUALREWARDSDISTRIBUTION = "DualRewardsDistribution";
 
     /* ========== ETERNAL STORAGE CONSTANTS ========== */
 
@@ -94,7 +92,7 @@ contract FeePool is Owned, Proxyable, LimitedSetup, MixinSystemSettings, IFeePoo
     /* ========== VIEWS ========== */
     function resolverAddressesRequired() public view returns (bytes32[] memory addresses) {
         bytes32[] memory existingAddresses = MixinSystemSettings.resolverAddressesRequired();
-        bytes32[] memory newAddresses = new bytes32[](13);
+        bytes32[] memory newAddresses = new bytes32[](12);
         newAddresses[0] = CONTRACT_SYSTEMSTATUS;
         newAddresses[1] = CONTRACT_SYNTHETIX;
         newAddresses[2] = CONTRACT_FEEPOOLSTATE;
@@ -107,7 +105,6 @@ contract FeePool is Owned, Proxyable, LimitedSetup, MixinSystemSettings, IFeePoo
         newAddresses[9] = CONTRACT_ETH_COLLATERAL_SUSD;
         newAddresses[10] = CONTRACT_REWARDSDISTRIBUTION;
         newAddresses[11] = CONTRACT_COLLATERALMANAGER;
-        newAddresses[12] = CONTRACT_DUALREWARDSDISTRIBUTION;
         addresses = combineArrays(existingAddresses, newAddresses);
     }
 
@@ -157,10 +154,6 @@ contract FeePool is Owned, Proxyable, LimitedSetup, MixinSystemSettings, IFeePoo
 
     function rewardsDistribution() internal view returns (IRewardsDistribution) {
         return IRewardsDistribution(requireAndGetAddress(CONTRACT_REWARDSDISTRIBUTION));
-    }
-
-    function dualRewardsDistribution() internal view returns (IDualRewardsDistribution) {
-        return IDualRewardsDistribution(requireAndGetAddress(CONTRACT_DUALREWARDSDISTRIBUTION));
     }
 
     function issuanceRatio() external view returns (uint) {

@@ -59,7 +59,6 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
         address _rewardEscrow,
         address _feePoolProxy
     ) public Owned(_owner) {
-        console.log('DualRewardsDistribution is getting initialised ');
         authority = _authority;
         synthetixProxy = _synthetixProxy;
         rewardTokenProxy = _rewardTokenProxy;
@@ -71,6 +70,10 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
 
     function setSynthetixProxy(address _synthetixProxy) external onlyOwner {
         synthetixProxy = _synthetixProxy;
+    }
+
+    function setRewardTokenProxy(address _rewardTokenProxy) external onlyOwner {
+        rewardTokenProxy = _rewardTokenProxy;
     }
 
     function setRewardEscrow(address _rewardEscrow) external onlyOwner {
@@ -96,21 +99,23 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
      * array. Any entries here will be iterated and rewards distributed to
      * each address when tokens are sent to this contract and distributeRewards()
      * is called by the autority.
-     * @param destination An address to send rewards tokens too
-     * @param amount The amount of rewards tokens to send
+     * @param amountA The amount of rewardA-tokens to edit. Send the same number to keep or change the amount of tokens to send.
+     * @param amountB The amount of rewardB-tokens to edit. Send the same number to keep or change the amount of tokens to send.
+     * @param destination The destination address. Send the same address to keep or different address to change it.
      */
 
-    function addDualRewardsDistribution(address rewardTokenAProxy, uint amountA,address rewardTokenBProxy, uint amountB, address destination) external onlyOwner returns (bool) {
+    function addDualRewardsDistribution(uint amountA, uint amountB, address destination) external onlyOwner returns (bool) {
         require(destination != address(0), "Cant add a zero address");
         require(amountA != 0, "Cant add a zero reward-amountA");
         require(amountB != 0, "Cant add a zero reward-amountB");
 
         console.log('addRewardDistribution for destination: %s', destination);
 
-        DualRewardsDistributionData memory dualRewardsDistribution = DualRewardsDistributionData(rewardTokenAProxy, amountA, rewardTokenBProxy, amountB, destination);
+        DualRewardsDistributionData memory dualRewardsDistribution = 
+        DualRewardsDistributionData(synthetixProxy, amountA, rewardTokenProxy, amountB, destination);
         distributions.push(dualRewardsDistribution);
 
-        emit DualRewardDistributionAdded(distributions.length - 1, rewardTokenAProxy, amountA, rewardTokenBProxy, amountB, destination);
+        emit DualRewardDistributionAdded(distributions.length - 1, synthetixProxy, amountA, rewardTokenProxy, amountB, destination);
         return true;
     }
 
@@ -137,24 +142,18 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
     /**
      * @notice Edits a RewardDistribution in the distributions array.
      * @param index The index of the DualRewardsDistributionData to edit
-     * @param rewardTokenAProxy The proxy token address of rewardA. Send the same address to keep or different address to change it.
      * @param amountA The amount of rewardA-tokens to edit. Send the same number to keep or change the amount of tokens to send.
-    * @param rewardTokenBProxy The proxy token address of rewardB. Send the same address to keep or different address to change it.
      * @param amountB The amount of rewardB-tokens to edit. Send the same number to keep or change the amount of tokens to send.
      * @param destination The destination address. Send the same address to keep or different address to change it.
      */
     function editDualRewardsDistribution(
         uint index,
-        address rewardTokenAProxy,
         uint amountA,
-        address rewardTokenBProxy,
         uint amountB,
         address destination
     ) external onlyOwner returns (bool) {
         require(index <= distributions.length - 1, "index out of bounds");
-        distributions[index].rewardTokenAProxy = rewardTokenAProxy;
         distributions[index].amountA = amountA;
-        distributions[index].rewardTokenBProxy = rewardTokenBProxy;
         distributions[index].amountB = amountB;
         distributions[index].destination = destination;
         return true;
@@ -180,7 +179,7 @@ contract DualRewardsDistribution is Owned, IDualRewardsDistribution {
 
         // Iterate the array of distributions sending the configured amounts
         for (uint i = 0; i < distributions.length; i++) {
-            if (distributions[i].destination != address(0) || distributions[i].amount != 0) {
+            if (distributions[i].destination != address(0) || (distributions[i].amountA != 0 && distributions[i].amountB != 0) ){
                 remainderA = remainderA.sub(distributions[i].amountA);
                 remainderB = remainderB.sub(distributions[i].amountB);
 
