@@ -85,11 +85,6 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
             return rewardPerTokenBStored;
         }
 
-        console.log('rewardPerTokenB -> rewardPerTokenBStored : %s ', rewardPerTokenBStored);
-        console.log('rewardPerTokenB -> lastUpdateTime : %s ', lastUpdateTime);
-        console.log('rewardPerTokenB -> rewardRateB : %s ', rewardRateB);
-        console.log('rewardPerTokenB -> _totalSupply : %s ', _totalSupply);
-
         return
             rewardPerTokenBStored.add(
                 lastTimeRewardApplicable().sub(lastUpdateTime).mul(rewardRateB).mul(1e18).div(_totalSupply)
@@ -155,8 +150,7 @@ contract StakingDualRewards is IStakingDualRewards, DualRewardsDistributionRecip
     /* ========== RESTRICTED FUNCTIONS ========== */
 
     function notifyRewardAmount(uint256 rewardA, uint256 rewardB) external onlyDualRewardsDistribution updateReward(address(0)) {
-        console.log('notifyRewardAmount called for -> rewardA: %s , rewardsB -> %s', rewardA, rewardB);
-       
+               
         if (block.timestamp >= periodFinish) {
             rewardRateA = rewardA.div(rewardsDuration);
             rewardRateB = rewardB.div(rewardsDuration);
