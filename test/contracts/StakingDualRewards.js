@@ -382,29 +382,40 @@ contract('StakingDualRewards', accounts => {
 		});
 
 		it('rewardRate should increase if new rewards come before DURATION ends', async () => {
-			const totalToDistribute = toUnit('5000');
 
-			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
-			await stakingDualRewards.notifyRewardAmount(totalToDistribute, 0, {
+			const totalToDistribute_RewardToken_A = toUnit('5000');
+			const totalToDistribute_RewardToken_B = toUnit('5000');
+
+			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute_RewardToken_A, { from: owner });
+			await rewardsTokenB.transfer(stakingDualRewards.address, totalToDistribute_RewardToken_B, { from: owner });
+
+			await stakingDualRewards.notifyRewardAmount(totalToDistribute_RewardToken_A, totalToDistribute_RewardToken_B, {
 				from: mockDualRewardsDistributionAddress,
 			});
 
-			const rewardRateInitial = await stakingDualRewards.rewardRateA();
+			const rewardRateInitial_RewardTokenA = await stakingDualRewards.rewardRateA();
+			const rewardRateInitial_RewardTokenB = await stakingDualRewards.rewardRateB();
 
-			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
-			await stakingDualRewards.notifyRewardAmount(totalToDistribute, 0, {
+			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute_RewardToken_A, { from: owner });
+			await rewardsTokenB.transfer(stakingDualRewards.address, totalToDistribute_RewardToken_B, { from: owner });
+
+			await stakingDualRewards.notifyRewardAmount(totalToDistribute_RewardToken_A, totalToDistribute_RewardToken_B, {
 				from: mockDualRewardsDistributionAddress,
 			});
 
-			const rewardRateLater = await stakingDualRewards.rewardRateA();
+			const rewardRateLater_RewardTokenA = await stakingDualRewards.rewardRateA();
 
-			assert.bnGt(rewardRateInitial, ZERO_BN);
-			assert.bnGt(rewardRateLater, rewardRateInitial);
+			assert.bnGt(rewardRateInitial_RewardTokenA, ZERO_BN);
+			assert.bnGt(rewardRateLater_RewardTokenA, rewardRateInitial_RewardTokenA);
+
+			const rewardRateLater_RewardTokenB = await stakingDualRewards.rewardRateB();
+
+			assert.bnGt(rewardRateInitial_RewardTokenB, ZERO_BN);
+			assert.bnGt(rewardRateLater_RewardTokenB, rewardRateInitial_RewardTokenB);
 		});
 
 		it('rewards token balance should rollover after DURATION', async () => {
 			const totalToStake = toUnit('100');
-			const totalToDistribute = toUnit('5000');
 
 			await stakingToken.transfer(stakingAccount1, totalToStake, { from: owner });
 			await stakingToken.approve(stakingDualRewards.address, totalToStake, {
@@ -412,25 +423,35 @@ contract('StakingDualRewards', accounts => {
 			});
 			await stakingDualRewards.stake(totalToStake, { from: stakingAccount1 });
 
-			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
-			await stakingDualRewards.notifyRewardAmount(totalToDistribute, 0, {
+			const totalToDistribute_RewardToken_A = toUnit('5000');
+			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute_RewardToken_A, { from: owner });
+
+			const totalToDistribute_RewardToken_B = toUnit('5000');
+			await rewardsTokenB.transfer(stakingDualRewards.address, totalToDistribute_RewardToken_B, { from: owner });
+			
+			await stakingDualRewards.notifyRewardAmount(totalToDistribute_RewardToken_A, totalToDistribute_RewardToken_B, {
 				from: mockDualRewardsDistributionAddress,
 			});
 
 			await fastForward(DAY * 7);
 
-			const earnedFirst = await stakingDualRewards.earnedA(stakingAccount1);
+			const earnedFirst_RewardToken_A = await stakingDualRewards.earnedA(stakingAccount1);
+			const earnedFirst_RewardToken_B = await stakingDualRewards.earnedB(stakingAccount1);
+
 			await setRewardsTokenExchangeRate();
 
-			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute, { from: owner });
-			await stakingDualRewards.notifyRewardAmount(totalToDistribute, 0, {
+			await rewardsTokenA.transfer(stakingDualRewards.address, totalToDistribute_RewardToken_A, { from: owner });
+			await stakingDualRewards.notifyRewardAmount(totalToDistribute_RewardToken_A, 0, {
 				from: mockDualRewardsDistributionAddress,
 			});
 
 			await fastForward(DAY * 7);
 
-			const earnedSecond = await stakingDualRewards.earnedA(stakingAccount1);
-			assert.bnEqual(earnedSecond, earnedFirst.add(earnedFirst));
+			const earnedSecond_RewardToken_A = await stakingDualRewards.earnedA(stakingAccount1);
+			assert.bnEqual(earnedSecond_RewardToken_A, earnedFirst_RewardToken_A.add(earnedFirst_RewardToken_A));
+
+			const earnedSecond_RewardToken_B = await stakingDualRewards.earnedB(stakingAccount1);
+			assert.bnEqual(earnedSecond_RewardToken_B, earnedFirst_RewardToken_B);
 		});
 	});
 

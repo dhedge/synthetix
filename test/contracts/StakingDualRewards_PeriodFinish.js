@@ -80,13 +80,6 @@ contract('StakingDualRewards', accounts => {
 			contracts: ['DualRewardsDistribution', 'Synthetix', 'FeePool', 'SystemSettings'],
 		}));
 
-		console.log(`stakingAccount1 is: ${stakingAccount1}`);
-		console.log('stakingToken address: ', stakingToken.address);
-		console.log(`rewardsTokenA is: SNX with address: ${rewardsTokenA.address} `);
-		console.log(`rewardsTokenB is: DHT with address: ${rewardsTokenB.address} `);
-		console.log(`externalRewardsToken is: MOAR with address: ${externalRewardsToken.address} `);
-		console.log('dualRewardsDistribution contract Address is: ', dualRewardsDistribution.address);
-
 		stakingDualRewards = await setupContract({
 			accounts,
 			contract: 'StakingDualRewards',
@@ -185,10 +178,6 @@ contract('StakingDualRewards', accounts => {
 			);
 			assert.equal(await dualRewardsDistribution.distributionsLength(), 1);
 
-			console.log('rewardsTokenA Address is: ', rewardsTokenA.address);
-			console.log('rewardsTokenB Address is: ', rewardsTokenB.address);
-			console.log('dualRewardsDistribution.address is: ', dualRewardsDistribution.address);
-
 			// Transfer RewardsToken-A to the RewardsDistribution contract address
 			await rewardsTokenA.transfer(dualRewardsDistribution.address, totalToDistribute_RewardToken_A, { from: owner });
 
@@ -203,12 +192,7 @@ contract('StakingDualRewards', accounts => {
 			// Period finish should be ~7 days from now
 			const periodFinish = await stakingDualRewards.periodFinish();
 			const curTimestamp = await currentTime();
-			
-			console.log('periodFinish: ', periodFinish.toString());
-			console.log('periodFinish-parsed: ', parseInt(periodFinish.toString(), 10));
-			console.log('curTimestamp: ', curTimestamp.toString());
-			console.log('curTimestamp-advanced-by-7-days: ', curTimestamp + DAY * 7);
-
+		
 			assert.equal(parseInt(periodFinish.toString(), 10), curTimestamp + DAY * 7);
 
 			// Reward duration is 7 days, so we'll
@@ -223,7 +207,6 @@ contract('StakingDualRewards', accounts => {
 			assert.bnGt(rewardPerToken_RewardToken_A, ZERO_BN);
 
 			// Reward rate For RewardToken-B and reward per token
-
 			const rewardRate_RewardToken_B = await stakingDualRewards.rewardRateB();
 			assert.bnGt(rewardRate_RewardToken_B, ZERO_BN);
 
@@ -253,6 +236,14 @@ contract('StakingDualRewards', accounts => {
 			//assert for the Delta-leftover/reminder of the rewards of type rewardToken-A
 			assert.bnClose(rewards_RewardToken_A_Earned, rewards_RewardToken_A_Earned_Post_Withdraw, toUnit('0.1'));
 
+
+			//rewards of type rewardToken-B Post-Withdraw
+			const rewards_RewardToken_B_Earned_Post_Withdraw = await stakingDualRewards.earnedB(stakingAccount1);
+
+			//assert for the Delta-leftover/reminder of the rewards of type rewardToken-B
+			assert.bnClose(rewards_RewardToken_B_Earned, rewards_RewardToken_B_Earned_Post_Withdraw, toUnit('0.1'));
+
+
 			// Get rewards ( transfer the rewards of type rewardToken-A allocated for stakingAccount1 )
 			const initialRewardBal_RewardToken_A = await rewardsTokenA.balanceOf(stakingAccount1);
 			await stakingDualRewards.getReward({ from: stakingAccount1 });
@@ -260,11 +251,7 @@ contract('StakingDualRewards', accounts => {
 
 			assert.bnGt(postRewardRewardBal_RewardToken_A, initialRewardBal_RewardToken_A);
 
-			//rewards of type rewardToken-B Post-Withdraw
-			const rewards_RewardToken_B_Earned_Post_Withdraw = await stakingDualRewards.earnedB(stakingAccount1);
 
-			//assert for the Delta-leftover/reminder of the rewards of type rewardToken-B
-			//assert.bnClose(rewards_RewardToken_B_Earned, rewards_RewardToken_B_Earned_Post_Withdraw, toUnit('0.1'));
 
 			// Get rewards ( transfer the rewards of type rewardToken-B allocated for stakingAccount1 )
 			const initialRewardBal_RewardToken_B = await rewardsTokenB.balanceOf(stakingAccount1);
