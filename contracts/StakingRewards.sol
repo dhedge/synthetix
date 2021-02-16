@@ -5,7 +5,6 @@ import "openzeppelin-solidity-2.3.0/contracts/math/SafeMath.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/ERC20Detailed.sol";
 import "openzeppelin-solidity-2.3.0/contracts/token/ERC20/SafeERC20.sol";
 import "openzeppelin-solidity-2.3.0/contracts/utils/ReentrancyGuard.sol";
-import "hardhat/console.sol";
 
 // Inheritance
 import "./interfaces/IStakingRewards.sol";
@@ -130,9 +129,7 @@ contract StakingRewards is IStakingRewards, RewardsDistributionRecipient, Reentr
         require(rewardRate <= balance.div(rewardsDuration), "Provided reward too high");
 
         lastUpdateTime = block.timestamp;
-        console.log('periodFinish before update: %s ', periodFinish);
         periodFinish = block.timestamp.add(rewardsDuration);
-        console.log('periodFinish after update: %s ', periodFinish);
         emit RewardAdded(reward);
     }
 

@@ -5,16 +5,16 @@ import "./Owned.sol";
 
 
 contract DualRewardsDistributionRecipient is Owned {
-    address public rewardsDistribution;
+    address public dualRewardsDistribution;
 
     function notifyRewardAmount(uint256 rewardA, uint256 rewardB) external;
 
-    modifier onlyRewardsDistribution() {
-        require(msg.sender == rewardsDistribution, "Caller is not RewardsDistribution contract");
+    modifier onlyDualRewardsDistribution() {
+        require(msg.sender == dualRewardsDistribution, "Caller is not DualRewardsDistribution contract");
         _;
     }
 
-    function setRewardsDistribution(address _rewardsDistribution) external onlyOwner {
-        rewardsDistribution = _rewardsDistribution;
+    function setDualRewardsDistribution(address _dualRewardsDistribution) external onlyOwner {
+        dualRewardsDistribution = _dualRewardsDistribution;
     }
 }
